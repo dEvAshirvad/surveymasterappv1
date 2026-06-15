@@ -1,0 +1,249 @@
+---
+alwaysApply: true
+---
+# PRD - DMFT Baseline Survey Collection Tool
+
+> Build target: Cursor. Frontend PRD aligned to static forms architecture. Keep implementation simple, local-first, and reliable for field teams.
+
+---
+
+## 1. What This Is
+
+A bilingual frontend for DMFT baseline survey collection where form anatomy is static and versioned in frontend source.
+
+The frontend handles:
+- session creation/selection UX
+- form card dashboard (13 + 1)
+- draft entry creation and editing
+- conditional question rendering from static JSON
+
+The backend only persists `sessions` and `session_entries`.
+
+## 2. Hard Constraints
+
+- **Local-first runtime**: no cloud dependency at runtime.
+- **Sibling-repo integration**: frontend calls backend in `../api`.
+- **Static forms**: all form anatomy is in frontend JSON; backend does not store form definitions.
+- **Local team access only**: no edit-key/auth header in this phase.
+- **Desktop-first UI**: tuned for laptop/tablet usage.
+- **Bilingual labels**: all question labels and helper text in `en` and `hi`.
+- **No gold plating**: no analytics, BI dashboards, or role systems.
+
+## 3. Repo Layout and Stack
+
+| Package | Path | Default Port |
+| --- | --- | --- |
+| Backend API | `../api` | `3001` |
+| Frontend | `app/` (this repo) | `3000` |
+
+### Frontend stack
+
+- Next.js App Router
+- React + TanStack React Query
+- axios (single HTTP client)
+- shadcn/ui + Tailwind
+- Zod for client-side schema guards where needed
+- `sessionStorage` for edit key, `localStorage` for UI draft helpers
+
+### Backend integration assumptions
+
+- Sessions module already exists (`POST /sessions`, `GET /sessions`, `GET /sessions/:id`).
+- Next backend module is `session_entries` (session-scoped entries by `formCode`).
+
+## 4. Frontend Architecture
+
+```text
+app/
+├── app/
+│   ├── page.tsx                        # landing (session toolbar + form cards)
+│   ├── fill/[sessionID]/[entryID]/[section]/page.tsx
+│   └── fill/[sessionID]/[entryID]/[section]/edit/page.tsx
+├── components/
+│   ├── session/
+│   ├── forms/
+│   ├── entries/
+│   └── ui/
+├── lib/
+│   ├── api/
+│   │   ├── client.ts                   # axios base + interceptors
+│   │   └── endpoints/
+│   │       ├── sessions.ts
+│   │       └── session-entries.ts
+│   ├── form-anatomy/                   # static 13 + 1 form json
+│   ├── survey/get-visible-questions.ts
+│   └── storage/
+│       └── draft.ts
+└── hooks/api/
+```
+
+## 5. Static Form Anatomy Contract
+
+Frontend stores one static array of forms with shape:
+
+```ts
+type FormAnatomy = {
+  code: string; // A..N (13 + 1 set)
+  title: { en: string; hi: string };
+  order: number;
+  questions: Question[];
+};
+
+type Question = {
+  qid: string;
+  ord: number;
+  title: { en: string; hi: string };
+  type: "boolean" | "options" | "text" | "number" | "multi_number" | "matrix";
+  uom?: { en: string; hi: string };
+  options?: Array<{ value: string; label: { en: string; hi: string } }>;
+  parentId?: string;
+  triggerValue?: string;
+};
+```
+
+This is the single source of truth for rendering and conditional visibility.
+
+## 6. Core Product Flow
+
+### Step 1: Create or select session
+
+- Landing page shows session toolbar.
+- User either creates a session or selects an existing session.
+- Selected session becomes active UI context.
+
+### Step 2: Open form card and create empty entry
+
+- Landing page shows 13 + 1 form cards.
+- Clicking card shows entries list for that `formCode`.
+- `Create New Entry` creates an empty session entry draft in backend.
+
+### Step 3: Fill and save
+
+- New draft redirects to:
+  - `/fill/:sessionID/:entryID/section-a`
+- Existing entry redirects to:
+  - `/fill/:sessionID/:entryID/section-a/edit`
+- UI renders anatomy from static JSON and computes visible questions.
+- Saves happen via patch/update API calls; user can resume later.
+
+## 7. Frontend Route Map
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Session toolbar + 13 + 1 form cards |
+| `/fill/:sessionID/:entryID/:section` | Fill draft flow |
+| `/fill/:sessionID/:entryID/:section/edit` | Edit existing entry flow |
+
+## 8. Backend API Contract Used by Frontend
+
+### Sessions
+
+| Method | URL | Use |
+| --- | --- | --- |
+| `POST` | `/api/v1/sessions` | Create session |
+| `GET` | `/api/v1/sessions` | Session listing |
+| `GET` | `/api/v1/sessions/:id` | Session detail validation |
+
+### Session entries
+
+| Method | URL | Use |
+| --- | --- | --- |
+| `GET` | `/api/v1/sessions/:id/entries?formCode=A` | List entries under one card |
+| `POST` | `/api/v1/sessions/:id/entries` | Create empty draft entry |
+| `GET` | `/api/v1/sessions/:id/entries/:entryId` | Load one entry |
+| `PATCH` | `/api/v1/sessions/:id/entries/:entryId` | Save partial answers |
+| `POST` | `/api/v1/sessions/:id/entries/:entryId/submit` | Mark submitted |
+| `DELETE` | `/api/v1/sessions/:id/entries/:entryId` | Soft delete |
+
+All session-entry routes are open in local team mode for this phase.
+
+## 9. HTTP and State Management
+
+- axios base URL: `NEXT_PUBLIC_API_URL` (default `http://localhost:3001`)
+- no auth-header interceptor is required in this phase
+- TanStack Query keys:
+  - `['sessions']`
+  - `['session', sessionId]`
+  - `['entries', sessionId, formCode]`
+  - `['entry', sessionId, entryId]`
+- mutations invalidate affected keys
+
+## 10. Conditional Rendering Logic
+
+```ts
+function getVisibleQuestions(questions: Question[], answers: Record<string, unknown>) {
+  return questions
+    .filter(q => !q.parentId || answers[q.parentId] === q.triggerValue)
+    .sort((a, b) => a.ord - b.ord);
+}
+```
+
+Rules:
+- No nested expression engine.
+- Parent change recomputes visibility instantly.
+- Hidden question answers may be preserved unless explicitly cleared by section policy.
+
+## 11. UI Requirements
+
+- Top-level landing has:
+  - session create/select toolbar
+  - 13 + 1 card grid
+- Each card opens entry list view
+- Entry list has `Create New Entry`
+- Fill page supports:
+  - autosave feedback
+  - resume support
+  - bilingual labels
+  - progress indicator (`answered / visible`)
+
+## 12. Out of Scope
+
+- Backend-managed dynamic forms
+- form seed upload flows
+- share slug based public form routes
+- cross-device merge workflow (this phase)
+- analytics/reporting layer
+- role/auth frameworks beyond edit key
+
+## 13. Build Order
+
+1. Finalize frontend PRD and static anatomy conventions.
+2. Build session toolbar UX on landing.
+3. Build 13 + 1 form cards from static anatomy metadata.
+4. Build entry list by form card.
+5. Wire `Create New Entry` + redirects.
+6. Build fill/edit pages using static anatomy + conditional logic.
+7. Add autosave and submit transitions.
+8. Add error/retry states and polish.
+
+## 14. Definition of Done
+
+- User can create/select session from landing.
+- User can open any form card and view its entries.
+- `Create New Entry` creates backend draft and routes correctly.
+- User can partially fill, save, leave, and resume.
+- UI is fully driven by static anatomy JSON.
+- Session and session-entry routes function without edit-key/auth headers.
+- Local checks pass (`typecheck`, `lint`, `build`).
+
+## 15. Local Dev Commands
+
+```bash
+# API
+cd ../api
+docker compose -f db.yml up -d
+pnpm dev
+
+# Frontend
+cd ../app
+cp .env.example .env.local
+pnpm dev
+```
+
+`.env.local`:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001
+```
+
+Frontend: `http://localhost:3000`  
+Backend docs: `http://localhost:3001/docs/scalar`

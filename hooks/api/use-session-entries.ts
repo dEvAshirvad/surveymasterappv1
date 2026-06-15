@@ -1,0 +1,199 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import {
+  createSessionEntry,
+  deleteSessionEntry,
+  getSessionEntry,
+  getOrCreateFormEntry,
+  listSessionEntries,
+  patchSessionEntry,
+  submitSessionEntry,
+  type SessionEntryProgress,
+} from "@/lib/api/endpoints/session-entries";
+import { queryKeys } from "@/lib/api/query-keys";
+
+export function useSessionEntries(params: {
+  sessionId?: string;
+  formCode?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const { sessionId, formCode, page, limit } = params;
+  const enabled = Boolean(sessionId && formCode);
+  const pageNumber = page ?? 1;
+  const pageLimit = limit ?? 10;
+
+  return useQuery({
+    queryKey:
+      sessionId && formCode
+        ? queryKeys.entries.bySessionForm(sessionId, formCode, pageNumber, pageLimit)
+        : ["entries", "disabled"],
+    enabled,
+    queryFn: () =>
+      listSessionEntries({
+        sessionId: sessionId as string,
+        formCode,
+        page: pageNumber,
+        limit: pageLimit,
+      }),
+  });
+}
+
+export function useCreateSessionEntry(sessionId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ formCode }: { formCode: string }) => {
+      if (!sessionId) {
+        throw new Error("No active session selected.");
+      }
+      return createSessionEntry({ sessionId, formCode });
+    },
+    onSuccess: (_, variables) => {
+      if (!sessionId) return;
+
+      void queryClient.invalidateQueries({
+        queryKey: ["entries", sessionId, variables.formCode],
+      });
+    },
+  });
+}
+
+export function useSessionEntry(sessionId?: string, entryId?: string) {
+  const enabled = Boolean(sessionId && entryId);
+
+  return useQuery({
+    queryKey:
+      sessionId && entryId
+        ? queryKeys.entries.detail(sessionId, entryId)
+        : ["entry", "disabled"],
+    enabled,
+    queryFn: () =>
+      getSessionEntry({
+        sessionId: sessionId as string,
+        entryId: entryId as string,
+      }),
+  });
+}
+
+export function useGetOrCreateFormEntry(sessionId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ formCode }: { formCode: string }) => {
+      if (!sessionId) {
+        throw new Error("No active session selected.");
+      }
+      return getOrCreateFormEntry({ sessionId, formCode });
+    },
+    onSuccess: (entry, variables) => {
+      if (!sessionId) return;
+
+      queryClient.setQueryData(queryKeys.entries.detail(sessionId, entry.id), entry);
+      void queryClient.invalidateQueries({
+        queryKey: ["entries", sessionId, variables.formCode],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.sessions.formsSummary(sessionId),
+      });
+    },
+  });
+}
+
+export function usePatchSessionEntry(sessionId?: string, entryId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: {
+      expectedVersion: number;
+      answers?: Record<string, unknown>;
+      progress?: SessionEntryProgress;
+      contextSnapshot?: {
+        surveyorName: string;
+        surveyorNameNIT: string;
+        surveyDate: string;
+      };
+      formCode?: string;
+    }) => {
+      if (!sessionId || !entryId) {
+        throw new Error("Missing session or entry id.");
+      }
+
+      return patchSessionEntry({
+        sessionId,
+        entryId,
+        expectedVersion: input.expectedVersion,
+        answers: input.answers,
+        progress: input.progress,
+        contextSnapshot: input.contextSnapshot,
+      });
+    },
+    onSuccess: (_, variables) => {
+      if (!sessionId || !entryId) return;
+
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.entries.detail(sessionId, entryId),
+      });
+
+      if (variables.formCode) {
+        void queryClient.invalidateQueries({
+          queryKey: ["entries", sessionId, variables.formCode],
+        });
+      }
+    },
+  });
+}
+
+export function useDeleteSessionEntry(sessionId?: string, formCode?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ entryId }: { entryId: string }) => {
+      if (!sessionId) {
+        throw new Error("Missing session id.");
+      }
+
+      return deleteSessionEntry({ sessionId, entryId });
+    },
+    onSuccess: () => {
+      if (!sessionId || !formCode) return;
+
+      void queryClient.invalidateQueries({
+        queryKey: ["entries", sessionId, formCode],
+      });
+    },
+  });
+}
+
+export function useSubmitSessionEntry(sessionId?: string, entryId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { expectedVersion: number; formCode?: string }) => {
+      if (!sessionId || !entryId) {
+        throw new Error("Missing session or entry id.");
+      }
+
+      return submitSessionEntry({
+        sessionId,
+        entryId,
+        expectedVersion: input.expectedVersion,
+      });
+    },
+    onSuccess: (_, variables) => {
+      if (!sessionId || !entryId) return;
+
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.entries.detail(sessionId, entryId),
+      });
+
+      if (variables.formCode) {
+        void queryClient.invalidateQueries({
+          queryKey: ["entries", sessionId, variables.formCode],
+        });
+      }
+    },
+  });
+}
