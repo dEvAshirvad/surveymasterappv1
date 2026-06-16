@@ -4,7 +4,10 @@ import type {
   ConditionalOptionRule,
   FacilityGroupAnswer,
   FacilityInputAnswer,
+  MatrixOption,
+  Option,
   Question,
+  TieredAccessAnswer,
 } from "@/components/forms/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -33,99 +36,86 @@ type ResponseCellProps = {
   disabled?: boolean;
 };
 
-export function ResponseCell({
-  question,
+const inputClassName = "h-8 rounded-none border-border bg-card";
+
+type SmallMatrixFieldProps = {
+  rows: Option[];
+  cols: MatrixOption[];
+  value: Record<string, Record<string, string>>;
+  onChange: (nextValue: Record<string, Record<string, string>>) => void;
+  disabled?: boolean;
+  defaultCell?: string;
+  numericPattern: RegExp;
+};
+
+function SmallMatrixField({
+  rows,
+  cols,
   value,
   onChange,
   disabled = false,
-}: ResponseCellProps) {
-  const stringValue = typeof value === "string" ? value : "";
-  const numericPattern = /^\d*\.?\d*$/;
-  const conditionalValue =
-    value && typeof value === "object"
-      ? (value as { primary?: string; detail?: string | string[] })
-      : undefined;
+  defaultCell = "",
+  numericPattern,
+}: SmallMatrixFieldProps) {
+  const handleCellChange = (rowKey: string, colKey: string, next: string) => {
+    onChange({
+      ...value,
+      [rowKey]: {
+        ...(value[rowKey] ?? {}),
+        [colKey]: next,
+      },
+    });
+  };
 
-  const conditionalPrimary = conditionalValue?.primary ?? "";
+  return (
+    <div className="max-w-full overflow-x-auto border border-border">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/50">
+            {cols.map((col) => (
+              <TableHead key={col.value} className="h-8 px-2 text-[11px]">
+                {col.label.en}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.value}>
+              {cols.map((col) => {
+                const cellValue = value[row.value]?.[col.value] ?? "";
+                const isLabelCol =
+                  col.inputType === undefined &&
+                  (col.value === "type" || col.value === "item");
 
-  const getRuleByPrimary = (rules: ConditionalOptionRule[] | undefined, primary: string) =>
-    rules?.find((rule) => rule.triggerValue === primary);
-
-  const inputClassName = "h-8 rounded-none border-border bg-card";
-
-  if (question.type === "date") {
-    return (
-      <Input
-        type="date"
-        value={stringValue}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
-        className={cn(inputClassName, "max-w-[200px]")}
-      />
-    );
-  }
-
-  if (question.type === "time") {
-    return (
-      <Input
-        type="time"
-        value={stringValue}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
-        className={cn(inputClassName, "max-w-[160px]")}
-      />
-    );
-  }
-
-  if (question.type === "small_matrix") {
-    const matrixValue =
-      value && typeof value === "object" ? (value as Record<string, Record<string, string>>) : {};
-    const rows = question.matrixRows ?? [];
-    const cols = question.matrixCols ?? [];
-
-    const handleCellChange = (rowKey: string, colKey: string, next: string) => {
-      onChange({
-        ...matrixValue,
-        [rowKey]: {
-          ...(matrixValue[rowKey] ?? {}),
-          [colKey]: next,
-        },
-      });
-    };
-
-    const defaultCell = question.matrixDefaultValue ?? "";
-
-    return (
-      <div className="max-w-full overflow-x-auto border border-border">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              {cols.map((col) => (
-                <TableHead key={col.value} className="h-8 px-2 text-[11px]">
-                  {col.label.en}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.value}>
-                {cols.map((col) => {
-                  const cellValue = matrixValue[row.value]?.[col.value] ?? "";
-                  const isLabelCol =
-                    col.inputType === undefined &&
-                    (col.value === "type" || col.value === "item");
-
-                  if (isLabelCol) {
-                    return (
-                      <TableCell key={col.value} className="px-2 py-1 text-[11px] font-medium">
-                        {row.label.en}
-                      </TableCell>
-                    );
-                  }
-
+                if (isLabelCol) {
                   return (
-                    <TableCell key={col.value} className="min-w-[100px] px-2 py-1">
+                    <TableCell key={col.value} className="px-2 py-1 text-[11px] font-medium">
+                      {row.label.en}
+                    </TableCell>
+                  );
+                }
+
+                return (
+                  <TableCell key={col.value} className="min-w-[100px] px-2 py-1">
+                    {col.inputType === "dropdown" ? (
+                      <Select
+                        value={cellValue || undefined}
+                        onValueChange={(next) => handleCellChange(row.value, col.value, next)}
+                        disabled={disabled}
+                      >
+                        <SelectTrigger className={cn(inputClassName, "h-7 w-full min-w-[80px]")}>
+                          <SelectValue placeholder="Select option" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(col.dropdownOptions ?? []).map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label.en}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
                       <Input
                         type="text"
                         inputMode={col.inputType === "number" ? "decimal" : "text"}
@@ -145,14 +135,118 @@ export function ResponseCell({
                         placeholder={defaultCell || "—"}
                         className={cn(inputClassName, "h-7 w-full min-w-[80px]")}
                       />
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                    )}
+                  </TableCell>
+                );
+              })}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+export function ResponseCell({
+  question,
+  value,
+  onChange,
+  disabled = false,
+}: ResponseCellProps) {
+  const stringValue = typeof value === "string" ? value : "";
+  const numericPattern = /^\d*\.?\d*$/;
+  const conditionalValue =
+    value && typeof value === "object"
+      ? (value as { primary?: string; detail?: string | string[] })
+      : undefined;
+
+  const conditionalPrimary = conditionalValue?.primary ?? "";
+
+  const getRuleByPrimary = (rules: ConditionalOptionRule[] | undefined, primary: string) =>
+    rules?.find((rule) => rule.triggerValue === primary);
+
+  if (question.type === "date") {
+    return (
+      <Input
+        type="date"
+        value={stringValue}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        className={cn(inputClassName, "max-w-[200px]")}
+      />
+    );
+  }
+
+  if (question.type === "duration") {
+    const durationValue =
+      value && typeof value === "object"
+        ? (value as { hours?: string; minutes?: string })
+        : {};
+    const hours = durationValue.hours ?? "";
+    const minutes = durationValue.minutes ?? "";
+    const integerPattern = /^\d*$/;
+
+    const updateDuration = (patch: { hours?: string; minutes?: string }) => {
+      onChange({
+        hours: patch.hours ?? hours,
+        minutes: patch.minutes ?? minutes,
+      });
+    };
+
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          type="text"
+          inputMode="numeric"
+          value={hours}
+          onChange={(event) => {
+            const next = event.target.value.trim();
+            if (next === "" || integerPattern.test(next)) {
+              updateDuration({ hours: next });
+            }
+          }}
+          disabled={disabled}
+          placeholder="0"
+          aria-label="Hours"
+          className={cn(inputClassName, "w-16")}
+        />
+        <span className="text-[11px] font-medium text-muted-foreground">hr</span>
+        <Input
+          type="text"
+          inputMode="numeric"
+          value={minutes}
+          onChange={(event) => {
+            const next = event.target.value.trim();
+            if (next === "" || integerPattern.test(next)) {
+              const parsed = Number(next);
+              if (next !== "" && parsed > 59) return;
+              updateDuration({ minutes: next });
+            }
+          }}
+          disabled={disabled}
+          placeholder="0"
+          aria-label="Minutes"
+          className={cn(inputClassName, "w-16")}
+        />
+        <span className="text-[11px] font-medium text-muted-foreground">min</span>
       </div>
+    );
+  }
+
+  if (question.type === "small_matrix") {
+    const matrixValue =
+      value && typeof value === "object" ? (value as Record<string, Record<string, string>>) : {};
+
+    return (
+      <SmallMatrixField
+        rows={question.matrixRows ?? []}
+        cols={question.matrixCols ?? []}
+        value={matrixValue}
+        onChange={onChange}
+        disabled={disabled}
+        defaultCell={question.matrixDefaultValue ?? ""}
+        numericPattern={numericPattern}
+      />
     );
   }
 
@@ -244,6 +338,105 @@ export function ResponseCell({
                     const next = event.target.value.trimStart();
                     if (next === "" || numericPattern.test(next)) {
                       updateFacility(facility.key, { distanceKm: next });
+                    }
+                  }}
+                  disabled={disabled}
+                  placeholder="Distance to nearest (km)"
+                  className={cn(inputClassName, "max-w-[200px]")}
+                />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (question.type === "tiered_access") {
+    const facilities = question.facilities ?? [];
+    const managementOptions = question.managementOptions ?? [];
+    const tieredValue: TieredAccessAnswer =
+      value && typeof value === "object" ? (value as TieredAccessAnswer) : {};
+
+    const updateTier = (key: string, patch: Partial<TieredAccessAnswer[string]>) => {
+      const current = tieredValue[key] ?? {};
+      onChange({
+        ...tieredValue,
+        [key]: { ...current, ...patch },
+      });
+    };
+
+    return (
+      <div className="space-y-3">
+        {facilities.map((facility) => {
+          const tierAnswer = tieredValue[facility.key];
+          const available = tierAnswer?.available ?? "";
+
+          return (
+            <div key={facility.key} className="space-y-1 border-l-2 border-border pl-2">
+              <p className="text-[11px] font-semibold text-foreground">{facility.label.en}</p>
+              <RadioGroup
+                value={available}
+                onValueChange={(next) =>
+                  updateTier(facility.key, {
+                    available: next as "Yes" | "No",
+                    managementType: next === "Yes" ? tierAnswer?.managementType : undefined,
+                    distanceKm: next === "No" ? tierAnswer?.distanceKm : undefined,
+                  })
+                }
+                disabled={disabled}
+                className="flex flex-row flex-wrap gap-3"
+              >
+                {(["Yes", "No"] as const).map((option) => {
+                  const itemId = `${question.qid}-${facility.key}-${option}`;
+                  return (
+                    <div key={option} className="flex items-center gap-2">
+                      <RadioGroupItem value={option} id={itemId} />
+                      <label
+                        htmlFor={itemId}
+                        className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-primary"
+                      >
+                        {option}
+                      </label>
+                    </div>
+                  );
+                })}
+              </RadioGroup>
+              {available === "Yes" ? (
+                <RadioGroup
+                  value={tierAnswer?.managementType ?? ""}
+                  onValueChange={(next) => updateTier(facility.key, { managementType: next })}
+                  disabled={disabled}
+                  className="flex flex-row flex-wrap gap-3"
+                >
+                  {managementOptions.map((option) => {
+                    const itemId = `${question.qid}-${facility.key}-mgmt-${option.value}`;
+                    return (
+                      <div key={option.value} className="flex items-center gap-2">
+                        <RadioGroupItem value={option.value} id={itemId} />
+                        <label
+                          htmlFor={itemId}
+                          className={cn(
+                            "cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-primary",
+                            disabled && "cursor-not-allowed opacity-60",
+                          )}
+                        >
+                          {option.label.en}
+                        </label>
+                      </div>
+                    );
+                  })}
+                </RadioGroup>
+              ) : null}
+              {available === "No" ? (
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={tierAnswer?.distanceKm ?? ""}
+                  onChange={(event) => {
+                    const next = event.target.value.trimStart();
+                    if (next === "" || numericPattern.test(next)) {
+                      updateTier(facility.key, { distanceKm: next });
                     }
                   }}
                   disabled={disabled}
@@ -555,6 +748,26 @@ export function ResponseCell({
                   );
                 })}
               </div>
+            ) : null}
+
+            {activeRule.detail.mode === "small_matrix" ? (
+              <SmallMatrixField
+                rows={activeRule.detail.matrixRows ?? []}
+                cols={activeRule.detail.matrixCols ?? []}
+                value={
+                  conditionalValue?.detail &&
+                  typeof conditionalValue.detail === "object" &&
+                  !Array.isArray(conditionalValue.detail)
+                    ? (conditionalValue.detail as Record<string, Record<string, string>>)
+                    : {}
+                }
+                onChange={(nextMatrix) =>
+                  onChange({ primary: conditionalPrimary, detail: nextMatrix })
+                }
+                disabled={disabled}
+                defaultCell={activeRule.detail.matrixDefaultValue ?? ""}
+                numericPattern={numericPattern}
+              />
             ) : null}
           </div>
         ) : null}

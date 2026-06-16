@@ -3,6 +3,7 @@
 import { Fragment, useMemo } from "react";
 
 import type { OrderBlock, Question } from "@/components/forms/types";
+import type { EntryAnswerItem } from "@/lib/api/endpoints/session-entries";
 import { ResponseCell } from "@/components/survey/response-cell";
 import {
   Table,
@@ -16,28 +17,38 @@ import {
 type GovernmentSurveyTableProps = {
   blocks: OrderBlock[];
   visibleQuestionIds: Set<string>;
-  answers: Record<string, unknown>;
-  onAnswerChange: (qid: string, nextValue: unknown) => void;
+  answers: EntryAnswerItem[];
+  displayQidByLegacyQid: Record<string, string>;
+  storageIndexByLegacyQid: Record<string, number>;
+  onAnswerChange: (storageIndex: number, question: Question, nextValue: unknown) => void;
   disabled?: boolean;
 };
 
 function QuestionRow({
   question,
   answers,
+  displayQidByLegacyQid,
+  storageIndexByLegacyQid,
   onAnswerChange,
   disabled,
   striped,
 }: {
   question: Question;
-  answers: Record<string, unknown>;
-  onAnswerChange: (qid: string, nextValue: unknown) => void;
+  answers: EntryAnswerItem[];
+  displayQidByLegacyQid: Record<string, string>;
+  storageIndexByLegacyQid: Record<string, number>;
+  onAnswerChange: (storageIndex: number, question: Question, nextValue: unknown) => void;
   disabled?: boolean;
   striped: boolean;
 }) {
+  const storageIndex = storageIndexByLegacyQid[question.qid];
+  const displayQid = displayQidByLegacyQid[question.qid] ?? question.qid;
+  const value = storageIndex != null ? answers[storageIndex]?.answer : undefined;
+
   return (
     <TableRow className={striped ? "bg-muted/40" : "bg-card"}>
       <TableCell className="w-[72px] align-top font-semibold text-primary pl-4">
-        {question.qid}
+        {displayQid}
       </TableCell>
       <TableCell className="min-w-[320px] align-top whitespace-normal">
         <p className="font-medium text-foreground">{question.title.en}</p>
@@ -56,8 +67,8 @@ function QuestionRow({
       <TableCell className="min-w-[200px] align-top pr-4">
         <ResponseCell
           question={question}
-          value={answers[question.qid]}
-          onChange={(nextValue) => onAnswerChange(question.qid, nextValue)}
+          value={value}
+          onChange={(nextValue) => onAnswerChange(storageIndex, question, nextValue)}
           disabled={disabled}
         />
       </TableCell>
@@ -98,6 +109,8 @@ export function GovernmentSurveyTable({
   blocks,
   visibleQuestionIds,
   answers,
+  displayQidByLegacyQid,
+  storageIndexByLegacyQid,
   onAnswerChange,
   disabled = false,
 }: GovernmentSurveyTableProps) {
@@ -133,6 +146,8 @@ export function GovernmentSurveyTable({
                   key={question.qid}
                   question={question}
                   answers={answers}
+                  displayQidByLegacyQid={displayQidByLegacyQid}
+                  storageIndexByLegacyQid={storageIndexByLegacyQid}
                   onAnswerChange={onAnswerChange}
                   disabled={disabled}
                   striped={striped}

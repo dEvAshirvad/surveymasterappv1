@@ -11,16 +11,24 @@ export type ConditionalDetailMode =
   | "dropdown"
   | "date"
   | "number"
-  | "inputs";
+  | "inputs"
+  | "small_matrix";
 export type FacilityAvailability = { available: "Yes" | "No"; distanceKm?: string };
 export type FacilityGroupAnswer = Record<string, FacilityAvailability>;
 export type FacilityInputAnswer = Record<string, string>;
+export type TieredAccessAnswer = Record<
+  string,
+  { available: "Yes" | "No"; managementType?: string; distanceKm?: string }
+>;
 export type ConditionalDetailConfig = {
   mode: ConditionalDetailMode;
   options?: Option[];
   placeholder?: string;
   facilities?: Array<{ key: string; label: Bilingual }>;
   facilityInputType?: MatrixInputType;
+  matrixRows?: Option[];
+  matrixCols?: MatrixOption[];
+  matrixDefaultValue?: string;
 };
 export type ConditionalOptionRule = {
   triggerValue: string;
@@ -36,11 +44,12 @@ export type QuestionType =
   | "text"
   | "number"
   | "date"
-  | "time"
+  | "duration"
   | "matrix"
   | "small_matrix"
   | "facility_group"
   | "facility_inputs"
+  | "tiered_access"
   | "conditional_options";
 
 export type Question = {
@@ -55,6 +64,7 @@ export type Question = {
   matrixRows?: Option[];       // for type "matrix" | "small_matrix"
   matrixCols?: MatrixOption[]; // for type "matrix" | "small_matrix"
   facilities?: Array<{ key: string; label: Bilingual }>; // facility_group | facility_inputs
+  managementOptions?: Option[]; // tiered_access
   facilityInputType?: MatrixInputType; // facility_inputs — default "text"
   matrixDefaultValue?: string; // small_matrix placeholder/default hint (e.g. "0")
   parentId?: string | null;    // qid of the question this depends on
@@ -74,6 +84,15 @@ export type FormDef = {
   ruleRef: string;
   note?: Bilingual;
   order: OrderBlock[];          // groups render top to bottom, questions in array order
+};
+
+export type OrderedFormQuestion = {
+  storageIndex: number;
+  blockIndex: number;
+  questionIndex: number;
+  displayQid: string;
+  blockTitle: Bilingual;
+  question: Question;
 };
 
 export function parseQid(qid: string): { letter: string; major: number; minor: number } {
@@ -107,6 +126,28 @@ export function sortOrderBlocks(blocks: OrderBlock[]): OrderBlock[] {
       const rightFirst = right.questions[0]?.qid ?? "";
       return compareQid(leftFirst, rightFirst);
     });
+}
+
+export function buildOrderedFormQuestions(form: FormDef): OrderedFormQuestion[] {
+  const orderedBlocks = sortOrderBlocks(form.order);
+  const items: OrderedFormQuestion[] = [];
+  let storageIndex = 0;
+
+  orderedBlocks.forEach((block, blockIndex) => {
+    block.questions.forEach((question, questionIndex) => {
+      items.push({
+        storageIndex,
+        blockIndex: blockIndex + 1,
+        questionIndex: questionIndex + 1,
+        displayQid: `${form.code}${blockIndex + 1}.${questionIndex + 1}`,
+        blockTitle: block.title,
+        question,
+      });
+      storageIndex += 1;
+    });
+  });
+
+  return items;
 }
 
 // Flatten all questions across blocks, then filter by conditional visibility.

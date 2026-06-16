@@ -20,6 +20,7 @@ type NewSessionFormValues = {
   surveyDate: string;
   totalPopulation: number;
   totalHouseholds: number;
+  distanceFromNearestMine: number;
   scHouseholds: number;
   stHouseholds: number;
   miningAffectedArea: "direct" | "indirect";
@@ -45,6 +46,7 @@ export default function NewSessionPage() {
       gramPanchayat: "",
       village: "",
       surveyDate: today,
+      distanceFromNearestMine: 0,
       totalPopulation: 1200,
       totalHouseholds: 250,
       scHouseholds: 40,
@@ -65,6 +67,7 @@ export default function NewSessionPage() {
           gramPanchayat: values.gramPanchayat,
           village: values.village,
           surveyDate: values.surveyDate,
+          distanceFromNearestMine: values.distanceFromNearestMine,
           totalPopulation: Number(values.totalPopulation),
           totalHouseholds: Number(values.totalHouseholds),
           scHouseholds: Number(values.scHouseholds),
@@ -178,6 +181,19 @@ export default function NewSessionPage() {
                   <option value="direct">direct</option>
                   <option value="indirect">indirect</option>
                 </select>
+              </div>
+            </div>
+
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-foreground">
+                  Distance from Nearest Mine (in km)
+                </label>
+                <Input type="number" {...register("distanceFromNearestMine", { required: true })} />
+                {errors.distanceFromNearestMine ? (
+                  <p className="mt-1 text-xs text-destructive">{errors.distanceFromNearestMine.message}</p>
+                ) : null}
               </div>
             </div>
 

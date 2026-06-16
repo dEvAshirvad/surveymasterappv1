@@ -1,10 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createSessionEntry,
   deleteSessionEntry,
+  type EntryAnswerItem,
   getSessionEntry,
   getOrCreateFormEntry,
   listSessionEntries,
@@ -39,6 +40,42 @@ export function useSessionEntries(params: {
         limit: pageLimit,
       }),
   });
+}
+
+export function useSessionEntriesByFormCodes(
+  sessionId: string | undefined,
+  formCodes: string[],
+) {
+  const normalizedCodes = [...new Set(formCodes.map((code) => code.toUpperCase()))];
+  const queryResults = useQueries({
+    queries: normalizedCodes.map((formCode) => ({
+      queryKey: sessionId
+        ? queryKeys.entries.bySessionForm(sessionId, formCode, 1, 1)
+        : ["entries", "disabled", formCode],
+      enabled: Boolean(sessionId),
+      queryFn: () =>
+        listSessionEntries({
+          sessionId: sessionId as string,
+          formCode,
+          page: 1,
+          limit: 1,
+        }),
+    })),
+  });
+
+  const dataByFormCode = normalizedCodes.reduce<Record<string, EntryAnswerItem[]>>(
+    (acc, formCode, index) => {
+      acc[formCode] = queryResults[index].data?.items?.[0]?.answers ?? [];
+      return acc;
+    },
+    {},
+  );
+
+  return {
+    dataByFormCode,
+    isLoading: queryResults.some((result) => result.isLoading),
+    isError: queryResults.some((result) => result.isError),
+  };
 }
 
 export function useCreateSessionEntry(sessionId?: string) {
@@ -108,7 +145,7 @@ export function usePatchSessionEntry(sessionId?: string, entryId?: string) {
   return useMutation({
     mutationFn: async (input: {
       expectedVersion: number;
-      answers?: Record<string, unknown>;
+      answers?: EntryAnswerItem[];
       progress?: SessionEntryProgress;
       contextSnapshot?: {
         surveyorName: string;

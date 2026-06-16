@@ -3,6 +3,11 @@ import type { ApiEnvelope, ApiPagination } from "@/lib/api/envelope";
 import type { SessionContext } from "@/lib/api/endpoints/sessions";
 
 export type SessionEntryStatus = "draft" | "submitted";
+export type EntryAnswerItem = {
+  title: { en: string; hi: string };
+  uom: { en: string; hi: string };
+  answer: unknown;
+};
 
 export type SessionEntry = {
   id: string;
@@ -10,7 +15,7 @@ export type SessionEntry = {
   sessionId: string;
   formCode: string;
   status: SessionEntryStatus;
-  answers: Record<string, unknown>;
+  answers: EntryAnswerItem[];
   progress: {
     answered: number;
     totalVisible: number;
@@ -49,6 +54,7 @@ function normalizeSessionEntry(
     ...item,
     id: stableId,
     rawId: item._id ?? item.id ?? undefined,
+    answers: Array.isArray(item.answers) ? item.answers : [],
   };
 }
 
@@ -113,7 +119,7 @@ export async function patchSessionEntry(params: {
   sessionId: string;
   entryId: string;
   expectedVersion: number;
-  answers?: Record<string, unknown>;
+  answers?: EntryAnswerItem[];
   progress?: SessionEntryProgress;
   contextSnapshot?: Pick<
     SessionContext,

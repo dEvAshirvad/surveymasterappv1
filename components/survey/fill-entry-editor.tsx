@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  buildOrderedFormQuestions,
   getPrimaryAnswerValue,
   getVisibleQuestions,
   type FormDef,
@@ -19,14 +20,17 @@ import { FormTable } from "@/components/survey/form-table";
 import { SessionMetaBar } from "@/components/survey/session-meta-bar";
 import {
   usePatchSessionEntry,
+  useSessionEntriesByFormCodes,
   useSubmitSessionEntry,
 } from "@/hooks/api/use-session-entries";
+import type { EntryAnswerItem } from "@/lib/api/endpoints/session-entries";
 import type { SessionContext } from "@/lib/api/endpoints/sessions";
 import type { SessionEntry } from "@/lib/api/endpoints/session-entries";
 import { ApiError } from "@/lib/api/envelope";
 import { Button } from "@/components/ui/button";
 
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
+const CROSS_SECTOR_CODES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
 
 type EditableContextSnapshot = Pick<
   SessionContext,
@@ -39,6 +43,28 @@ function pickEditableContextSnapshot(context: SessionContext): EditableContextSn
     surveyorNameNIT: context.surveyorNameNIT,
     surveyDate: context.surveyDate,
   };
+}
+
+function mergeSessionContextWithSnapshot(
+  sessionContext: SessionContext,
+  snapshot?: Partial<SessionContext>,
+): SessionContext {
+  if (!snapshot) return sessionContext;
+  return { ...sessionContext, ...snapshot };
+}
+
+function serializeAnswersForPatch(
+  form: FormDef,
+  answers: EntryAnswerItem[],
+): EntryAnswerItem[] {
+  return buildOrderedFormQuestions(form).map((item) => {
+    const existing = answers[item.storageIndex];
+    return {
+      title: existing?.title ?? item.question.title,
+      uom: existing?.uom ?? item.question.uom,
+      answer: existing?.answer ?? "",
+    };
+  });
 }
 
 function isQuestionAnswered(question: Question, value: unknown) {
@@ -75,6 +101,38 @@ function isQuestionAnswered(question: Question, value: unknown) {
 
     const typed = value as Record<string, string>;
     return facilities.every((facility) => String(typed[facility.key] ?? "").trim().length > 0);
+  }
+
+  if (question.type === "tiered_access") {
+    if (!value || typeof value !== "object") return false;
+    const facilities = question.facilities ?? [];
+    if (facilities.length === 0) return false;
+
+    const typed = value as Record<
+      string,
+      { available?: string; managementType?: string; distanceKm?: string }
+    >;
+    return facilities.every((facility) => {
+      const entry = typed[facility.key];
+      if (!entry?.available) return false;
+      if (entry.available === "Yes") {
+        return String(entry.managementType ?? "").trim().length > 0;
+      }
+      if (entry.available === "No") {
+        return String(entry.distanceKm ?? "").trim().length > 0;
+      }
+      return false;
+    });
+  }
+
+  if (question.type === "duration") {
+    if (!value || typeof value !== "object") return false;
+
+    const typed = value as { hours?: string; minutes?: string };
+    return (
+      String(typed.hours ?? "").trim().length > 0
+      || String(typed.minutes ?? "").trim().length > 0
+    );
   }
 
   if (typeof value === "number") {
@@ -122,15 +180,31 @@ function isQuestionAnswered(question: Question, value: unknown) {
         (facility) => String(detailRecord[facility.key] ?? "").trim().length > 0,
       );
     }
+
+    if (activeRule.detail.mode === "small_matrix") {
+      if (!typed.detail || typeof typed.detail !== "object" || Array.isArray(typed.detail)) {
+        return false;
+      }
+      return Object.values(typed.detail as Record<string, Record<string, string>>).some((row) =>
+        Object.values(row ?? {}).some((cell) => String(cell ?? "").trim().length > 0),
+      );
+    }
   }
 
   return false;
 }
 
-function computeProgress(form: FormDef, answers: Record<string, unknown>) {
+function computeProgress(form: FormDef, answers: EntryAnswerItem[]) {
+  const orderedQuestions = buildOrderedFormQuestions(form);
+  const answerByLegacyQid: Record<string, unknown> = {};
+
+  orderedQuestions.forEach((item) => {
+    answerByLegacyQid[item.question.qid] = answers[item.storageIndex]?.answer;
+  });
+
   const visibilityAnswers: Record<string, unknown> = {};
 
-  for (const [qid, value] of Object.entries(answers)) {
+  for (const [qid, value] of Object.entries(answerByLegacyQid)) {
     const primary = getPrimaryAnswerValue(value);
     if (primary) {
       visibilityAnswers[qid] = primary;
@@ -139,7 +213,7 @@ function computeProgress(form: FormDef, answers: Record<string, unknown>) {
 
   const visibleQuestions = getVisibleQuestions(form.order, visibilityAnswers);
   const answered = visibleQuestions.filter((question) =>
-    isQuestionAnswered(question, answers[question.qid]),
+    isQuestionAnswered(question, answerByLegacyQid[question.qid]),
   ).length;
   const totalVisible = visibleQuestions.length;
   const percent = totalVisible > 0 ? Math.round((answered / totalVisible) * 100) : 0;
@@ -173,21 +247,34 @@ export function FillEntryEditor({
   const router = useRouter();
   const patchMutation = usePatchSessionEntry(sessionId, entry.id);
   const submitMutation = useSubmitSessionEntry(sessionId, entry.id);
+  const crossSectorEntries = useSessionEntriesByFormCodes(
+    sessionId,
+    form.code === "O" ? CROSS_SECTOR_CODES : [],
+  );
 
-  const [answers, setAnswers] = useState<Record<string, unknown>>(
-    () => entry.answers ?? {},
+  const [answers, setAnswers] = useState<EntryAnswerItem[]>(
+    () => entry.answers ?? [],
   );
   const [contextSnapshot, setContextSnapshot] = useState<SessionContext>(
-    () => entry.contextSnapshot ?? context,
+    () => mergeSessionContextWithSnapshot(context, entry.contextSnapshot),
   );
   const [version, setVersion] = useState<number>(entry.version);
   const [saveState, setSaveState] = useState<SaveState>("idle");
 
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const patchMutationRef = useRef(patchMutation);
+  const onRefetchEntryRef = useRef(onRefetchEntry);
+  const contextRef = useRef(context);
+  patchMutationRef.current = patchMutation;
+  onRefetchEntryRef.current = onRefetchEntry;
+  contextRef.current = context;
+
   const lastSavedSnapshotRef = useRef<string>(
     JSON.stringify({
-      answers: entry.answers ?? {},
-      contextSnapshot: pickEditableContextSnapshot(entry.contextSnapshot ?? context),
+      answers: serializeAnswersForPatch(form, entry.answers ?? []),
+      contextSnapshot: pickEditableContextSnapshot(
+        mergeSessionContextWithSnapshot(context, entry.contextSnapshot),
+      ),
     }),
   );
   const expectedSection = sectionSlug(form.code);
@@ -199,8 +286,9 @@ export function FillEntryEditor({
     if (isSubmitted) return;
 
     const editableContextSnapshot = pickEditableContextSnapshot(contextSnapshot);
+    const serializedAnswers = serializeAnswersForPatch(form, answers);
     const currentSnapshot = JSON.stringify({
-      answers,
+      answers: serializedAnswers,
       contextSnapshot: editableContextSnapshot,
     });
     if (currentSnapshot === lastSavedSnapshotRef.current) return;
@@ -214,9 +302,9 @@ export function FillEntryEditor({
     autosaveTimerRef.current = setTimeout(async () => {
       try {
         const nextProgress = computeProgress(form, answers);
-        const patched = await patchMutation.mutateAsync({
+        const patched = await patchMutationRef.current.mutateAsync({
           expectedVersion: version,
-          answers,
+          answers: serializedAnswers,
           progress: nextProgress,
           contextSnapshot: editableContextSnapshot,
           formCode: entry.formCode,
@@ -227,19 +315,27 @@ export function FillEntryEditor({
         setSaveState("saved");
       } catch (error) {
         if (error instanceof ApiError && error.code === "VERSION_CONFLICT") {
-          const latest = await onRefetchEntry();
+          const latest = await onRefetchEntryRef.current();
           const latestEntry = latest.data;
 
           if (latestEntry) {
             setVersion(latestEntry.version);
-            setAnswers((previous) => ({
-              ...(latestEntry.answers ?? {}),
-              ...previous,
-            }));
-            setContextSnapshot((previous) => ({
-              ...(latestEntry.contextSnapshot ?? context),
-              ...pickEditableContextSnapshot(previous),
-            }));
+            setAnswers(latestEntry.answers ?? []);
+            setContextSnapshot((previous) =>
+              mergeSessionContextWithSnapshot(contextRef.current, {
+                ...latestEntry.contextSnapshot,
+                ...pickEditableContextSnapshot(previous),
+              }),
+            );
+            lastSavedSnapshotRef.current = JSON.stringify({
+              answers: serializeAnswersForPatch(form, latestEntry.answers ?? []),
+              contextSnapshot: pickEditableContextSnapshot(
+                mergeSessionContextWithSnapshot(
+                  contextRef.current,
+                  latestEntry.contextSnapshot,
+                ),
+              ),
+            });
           }
 
           setSaveState("conflict");
@@ -248,6 +344,7 @@ export function FillEntryEditor({
         }
 
         setSaveState("error");
+        lastSavedSnapshotRef.current = currentSnapshot;
         const message = error instanceof Error ? error.message : "Autosave failed.";
         toast.error(message);
       }
@@ -260,23 +357,30 @@ export function FillEntryEditor({
     };
   }, [
     answers,
-    context,
     contextSnapshot,
     entry.formCode,
     form,
     isSubmitted,
-    onRefetchEntry,
-    patchMutation,
     version,
   ]);
 
-  const handleAnswerChange = (qid: string, nextValue: unknown) => {
+  const handleAnswerChange = (
+    storageIndex: number,
+    question: Question,
+    nextValue: unknown,
+  ) => {
     if (isSubmitted) return;
+    if (storageIndex < 0) return;
 
-    setAnswers((previous) => ({
-      ...previous,
-      [qid]: nextValue,
-    }));
+    setAnswers((previous) => {
+      const next = [...previous];
+      next[storageIndex] = {
+        title: question.title,
+        uom: question.uom,
+        answer: nextValue,
+      };
+      return next;
+    });
   };
 
   const handleSubmit = async () => {
@@ -286,8 +390,9 @@ export function FillEntryEditor({
     try {
       let nextVersion = version;
       const editableContextSnapshot = pickEditableContextSnapshot(contextSnapshot);
+      const serializedAnswers = serializeAnswersForPatch(form, answers);
       const currentCombinedSnapshot = JSON.stringify({
-        answers,
+        answers: serializedAnswers,
         contextSnapshot: editableContextSnapshot,
       });
 
@@ -296,7 +401,7 @@ export function FillEntryEditor({
 
         const patchResult = await patchMutation.mutateAsync({
           expectedVersion: nextVersion,
-          answers,
+          answers: serializedAnswers,
           progress: computeProgress(form, answers),
           contextSnapshot: editableContextSnapshot,
           formCode: entry.formCode,
@@ -321,10 +426,12 @@ export function FillEntryEditor({
         const latest = await onRefetchEntry();
         if (latest.data) {
           setVersion(latest.data.version);
-          setContextSnapshot((previous) => ({
-            ...(latest.data?.contextSnapshot ?? context),
-            ...pickEditableContextSnapshot(previous),
-          }));
+          setContextSnapshot((previous) =>
+            mergeSessionContextWithSnapshot(context, {
+              ...latest.data?.contextSnapshot,
+              ...pickEditableContextSnapshot(previous),
+            }),
+          );
         }
         setSaveState("conflict");
         toast.error("Submit conflict. Reloaded latest version, please retry.");
@@ -376,6 +483,7 @@ export function FillEntryEditor({
           <FormTable
             form={form}
             answers={answers}
+            sourceAnswersByFormCode={crossSectorEntries.dataByFormCode}
             onAnswerChange={handleAnswerChange}
             disabled={isSubmitted}
           />

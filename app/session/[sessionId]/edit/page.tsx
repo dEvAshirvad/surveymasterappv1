@@ -20,6 +20,7 @@ type SessionEditFormValues = {
   village: string;
   surveyDate: string;
   totalPopulation: number;
+  distanceFromNearestMine : number;
   totalHouseholds: number;
   scHouseholds: number;
   stHouseholds: number;
@@ -60,6 +61,7 @@ export default function SessionEditPage() {
       totalPopulation: 1,
       totalHouseholds: 1,
       scHouseholds: 1,
+      distanceFromNearestMine: 0,
       stHouseholds: 1,
       miningAffectedArea: "direct",
       surveyorName: "",
@@ -77,6 +79,7 @@ export default function SessionEditPage() {
       gramPanchayat: session.context.gramPanchayat,
       village: session.context.village,
       surveyDate: toDateInputValue(session.context.surveyDate),
+      distanceFromNearestMine: session.context.distanceFromNearestMine,
       totalPopulation: Number(session.context.totalPopulation),
       totalHouseholds: Number(session.context.totalHouseholds),
       scHouseholds: Number(session.context.scHouseholds),
@@ -97,6 +100,7 @@ export default function SessionEditPage() {
           gramPanchayat: values.gramPanchayat,
           village: values.village,
           surveyDate: values.surveyDate,
+          distanceFromNearestMine: values.distanceFromNearestMine,
           totalPopulation: Number(values.totalPopulation),
           totalHouseholds: Number(values.totalHouseholds),
           scHouseholds: Number(values.scHouseholds),
@@ -205,6 +209,15 @@ export default function SessionEditPage() {
                   <option value="direct">direct</option>
                   <option value="indirect">indirect</option>
                 </select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-foreground">
+                  Distance from Nearest Mine (in km)
+                </label>
+                <Input type="number" {...register("distanceFromNearestMine", { required: true })} />
               </div>
             </div>
 

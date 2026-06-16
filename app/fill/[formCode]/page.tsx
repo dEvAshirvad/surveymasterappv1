@@ -52,6 +52,7 @@ function makePreviewContext(
     scHouseholds: 0,
     stHouseholds: 0,
     miningAffectedArea: "direct",
+    distanceFromNearestMine: 0,
     surveyorName: "",
     surveyorNameNIT: "",
   };
@@ -333,7 +334,7 @@ export default function FillByCodePage() {
             <FormNoteCallout note={form.note} />
             <FormTable
               form={form}
-              answers={{}}
+              answers={[]}
               onAnswerChange={() => {}}
               disabled
             />

@@ -25,6 +25,12 @@ function formatSurveyDate(value: string) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(parsed);
 }
 
+function formatContextValue(value: SessionContext[keyof SessionContext]) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number") return String(value);
+  return String(value);
+}
+
 function toDateInputValue(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
@@ -51,6 +57,7 @@ const CONTEXT_FIELDS: ContextField[] = [
   { key: "block", label: "Block" },
   { key: "gramPanchayat", label: "Gram panchayat" },
   { key: "village", label: "Village" },
+  { key: "distanceFromNearestMine", label: "Distance from nearest mine (in km)" },
   { key: "totalPopulation", label: "Total population" },
   { key: "totalHouseholds", label: "Total households" },
   { key: "scHouseholds", label: "SC households" },
@@ -133,7 +140,7 @@ export function SessionMetaBar({
               ? toDateInputValue(String(rawValue ?? ""))
               : field.formatter
                 ? field.formatter(rawValue)
-                : String(rawValue ?? "");
+                : formatContextValue(rawValue);
 
           return (
             <div key={field.key} className="space-y-1">

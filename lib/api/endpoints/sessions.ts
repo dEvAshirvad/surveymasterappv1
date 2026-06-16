@@ -8,6 +8,7 @@ export type SessionContext = {
   surveyDate: string;
   totalPopulation: number;
   totalHouseholds: number;
+  distanceFromNearestMine: number;
   scHouseholds: number;
   stHouseholds: number;
   miningAffectedArea: "direct" | "indirect";
