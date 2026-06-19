@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import type { FormDef } from "@/components/forms/types";
@@ -23,12 +23,7 @@ type FillPageHeaderProps = {
   form: FormDef;
   context: SessionContext;
   progress: { answered: number; totalVisible: number; percent: number };
-  status: string;
   saveState: string;
-  isSubmitted: boolean;
-  isSubmitting: boolean;
-  isSaving: boolean;
-  onSubmit: () => void;
 };
 
 function buildBreadcrumb(context: SessionContext) {
@@ -45,12 +40,7 @@ export function FillPageHeader({
   form,
   context,
   progress,
-  status,
   saveState,
-  isSubmitted,
-  isSubmitting,
-  isSaving,
-  onSubmit,
 }: FillPageHeaderProps) {
   const router = useRouter();
   const formIndex = FORMS.findIndex((item) => item.code === form.code);
@@ -127,22 +117,8 @@ export function FillPageHeader({
               variant="outline"
               className="border-primary-foreground/30 h-8 bg-primary-foreground/10 text-primary-foreground"
             >
-              {status.toUpperCase()}
-            </Badge>
-            <Badge
-              variant="outline"
-              className="border-primary-foreground/30 h-8 bg-primary-foreground/10 text-primary-foreground"
-            >
               Save: {saveState}
             </Badge>
-            <Button
-              onClick={onSubmit}
-              disabled={isSubmitted || isSubmitting || isSaving}
-              className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
-            >
-              {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
-              {isSubmitted ? "Submitted" : "Submit"}
-            </Button>
           </div>
         </div>
       </div>

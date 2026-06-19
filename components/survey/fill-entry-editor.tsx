@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,7 +20,6 @@ import { SessionMetaBar } from "@/components/survey/session-meta-bar";
 import {
   usePatchSessionEntry,
   useSessionEntriesByFormCodes,
-  useSubmitSessionEntry,
 } from "@/hooks/api/use-session-entries";
 import type { EntryAnswerItem } from "@/lib/api/endpoints/session-entries";
 import type { SessionContext } from "@/lib/api/endpoints/sessions";
@@ -244,9 +242,7 @@ export function FillEntryEditor({
   topContent,
   onRefetchEntry,
 }: FillEntryEditorProps) {
-  const router = useRouter();
   const patchMutation = usePatchSessionEntry(sessionId, entry.id);
-  const submitMutation = useSubmitSessionEntry(sessionId, entry.id);
   const crossSectorEntries = useSessionEntriesByFormCodes(
     sessionId,
     form.code === "O" ? CROSS_SECTOR_CODES : [],
@@ -278,13 +274,10 @@ export function FillEntryEditor({
     }),
   );
   const expectedSection = sectionSlug(form.code);
-  const isSubmitted = entry.status === "submitted";
 
   const liveProgress = useMemo(() => computeProgress(form, answers), [answers, form]);
 
   useEffect(() => {
-    if (isSubmitted) return;
-
     const editableContextSnapshot = pickEditableContextSnapshot(contextSnapshot);
     const serializedAnswers = serializeAnswersForPatch(form, answers);
     const currentSnapshot = JSON.stringify({
@@ -360,7 +353,6 @@ export function FillEntryEditor({
     contextSnapshot,
     entry.formCode,
     form,
-    isSubmitted,
     version,
   ]);
 
@@ -369,7 +361,6 @@ export function FillEntryEditor({
     question: Question,
     nextValue: unknown,
   ) => {
-    if (isSubmitted) return;
     if (storageIndex < 0) return;
 
     setAnswers((previous) => {
@@ -383,81 +374,15 @@ export function FillEntryEditor({
     });
   };
 
-  const handleSubmit = async () => {
-    if (!entry || !form || version == null) return;
-    if (isSubmitted) return;
-
-    try {
-      let nextVersion = version;
-      const editableContextSnapshot = pickEditableContextSnapshot(contextSnapshot);
-      const serializedAnswers = serializeAnswersForPatch(form, answers);
-      const currentCombinedSnapshot = JSON.stringify({
-        answers: serializedAnswers,
-        contextSnapshot: editableContextSnapshot,
-      });
-
-      if (currentCombinedSnapshot !== lastSavedSnapshotRef.current) {
-        setSaveState("saving");
-
-        const patchResult = await patchMutation.mutateAsync({
-          expectedVersion: nextVersion,
-          answers: serializedAnswers,
-          progress: computeProgress(form, answers),
-          contextSnapshot: editableContextSnapshot,
-          formCode: entry.formCode,
-        });
-
-        nextVersion = patchResult.version;
-        setVersion(nextVersion);
-        lastSavedSnapshotRef.current = currentCombinedSnapshot;
-      }
-
-      const submitResult = await submitMutation.mutateAsync({
-        expectedVersion: nextVersion,
-        formCode: entry.formCode,
-      });
-
-      setVersion(submitResult.version);
-      setSaveState("saved");
-      toast.success("Entry submitted successfully.");
-      router.push(`/fill/${sessionId}/${entry.formCode}`);
-    } catch (error) {
-      if (error instanceof ApiError && error.code === "VERSION_CONFLICT") {
-        const latest = await onRefetchEntry();
-        if (latest.data) {
-          setVersion(latest.data.version);
-          setContextSnapshot((previous) =>
-            mergeSessionContextWithSnapshot(context, {
-              ...latest.data?.contextSnapshot,
-              ...pickEditableContextSnapshot(previous),
-            }),
-          );
-        }
-        setSaveState("conflict");
-        toast.error("Submit conflict. Reloaded latest version, please retry.");
-        return;
-      }
-
-      setSaveState("error");
-      const message = error instanceof Error ? error.message : "Submit failed.";
-      toast.error(message);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
-      <main className="mx-auto max-w-[1240px]">
+      <main className="mx-auto max-w-[1240px] pb-24">
         <FillPageHeader
           sessionId={sessionId}
           form={form}
           context={contextSnapshot}
           progress={liveProgress}
-          status={entry.status}
           saveState={saveState}
-          isSubmitted={isSubmitted}
-          isSubmitting={submitMutation.isPending}
-          isSaving={patchMutation.isPending}
-          onSubmit={handleSubmit}
         />
 
         {topContent ? <div className="mt-4">{topContent}</div> : null}
@@ -467,10 +392,8 @@ export function FillEntryEditor({
             context={contextSnapshot}
             editableContext={pickEditableContextSnapshot(contextSnapshot)}
             onEditableContextChange={(next) => {
-              if (isSubmitted) return;
               setContextSnapshot((previous) => ({ ...previous, ...next }));
             }}
-            disabled={isSubmitted}
           />
           <FormNoteCallout note={form.note} />
 
@@ -485,7 +408,6 @@ export function FillEntryEditor({
             answers={answers}
             sourceAnswersByFormCode={crossSectorEntries.dataByFormCode}
             onAnswerChange={handleAnswerChange}
-            disabled={isSubmitted}
           />
         </div>
       </main>

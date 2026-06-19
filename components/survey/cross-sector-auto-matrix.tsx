@@ -100,6 +100,11 @@ function mapCoverageValue(
   return coverageCol.dropdownOptions.find((opt) => opt.value === rawCoverage)?.label.en ?? rawCoverage;
 }
 
+function isSourceRowFilled(rowValue: Record<string, string> | undefined) {
+  if (!rowValue || typeof rowValue !== "object") return false;
+  return Object.values(rowValue).some((cell) => String(cell ?? "").trim().length > 0);
+}
+
 export function CrossSectorAutoMatrix({
   question,
   value,
@@ -127,6 +132,8 @@ export function CrossSectorAutoMatrix({
 
       for (const row of sourceRows) {
         const sourceRowValue = sourceMatrix[row.value];
+        if (!isSourceRowFilled(sourceRowValue)) continue;
+
         const rawCoverage = readSourceCell(sourceRowValue, sourceCols, "schemename");
         rows.push({
           rowKey: `${sectorCode}__${row.value}`,
@@ -208,6 +215,15 @@ export function CrossSectorAutoMatrix({
             <TableHead className="text-primary-foreground">Recommended Intervention</TableHead>
           </TableRow>
         </TableHeader>
+        {sectorGroups.length === 0 ? (
+          <TableBody>
+            <TableRow>
+              <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                No sector activities filled in Forms A–N yet. Complete the gap matrices in those forms to populate this summary.
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        ) : (
         <TableBody>
           {sectorGroups.map((group) =>
             group.rows.map((row, rowIndex) => (
@@ -276,6 +292,7 @@ export function CrossSectorAutoMatrix({
             )),
           )}
         </TableBody>
+        )}
       </Table>
     </section>
   );

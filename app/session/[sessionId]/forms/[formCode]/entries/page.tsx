@@ -27,15 +27,8 @@ import {
 
 const PAGE_SIZE = 9;
 
-function fillPath(
-  sessionId: string,
-  formCode: string,
-  status: "draft" | "submitted",
-) {
-  const base = `/fill/${formCode}`;
-  return status === "draft"
-    ? `${base}/edit?sessionID=${sessionId}`
-    : `${base}?sessionID=${sessionId}`;
+function fillPath(sessionId: string, formCode: string) {
+  return `/fill/${formCode}/edit?sessionID=${sessionId}`;
 }
 
 function formatLocation(context: {
@@ -74,8 +67,6 @@ export default function SessionFormEntriesPage() {
     () => formsSummaryQuery.data?.forms.find((item) => item.formCode === formCode),
     [formCode, formsSummaryQuery.data?.forms],
   );
-  const draftCount = formSummary?.draft ?? 0;
-  const submittedCount = formSummary?.submitted ?? 0;
   const totalCount = formSummary?.total ?? entriesQuery.data?.pagination?.total ?? entries.length;
   const pagination = entriesQuery.data?.pagination;
   const totalPages = pagination?.totalPages ?? 1;
@@ -92,7 +83,7 @@ export default function SessionFormEntriesPage() {
     try {
       await createEntryMutation.mutateAsync({ formCode });
       toast.success("Draft entry created.");
-      router.push(fillPath(sessionId, formCode, "draft"));
+      router.push(fillPath(sessionId, formCode));
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Could not create entry.";
@@ -193,19 +184,9 @@ export default function SessionFormEntriesPage() {
             </Button>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2 text-[11px] sm:max-w-md">
-            <div className="border border-border bg-muted px-2 py-1 text-center">
-              <p className="font-semibold text-foreground">{totalCount}</p>
-              <p className="text-muted-foreground">Entries</p>
-            </div>
-            <div className="border border-border bg-muted px-2 py-1 text-center">
-              <p className="font-semibold text-foreground">{draftCount}</p>
-              <p className="text-muted-foreground">Draft</p>
-            </div>
-            <div className="border border-border bg-muted px-2 py-1 text-center">
-              <p className="font-semibold text-foreground">{submittedCount}</p>
-              <p className="text-muted-foreground">Submitted</p>
-            </div>
+          <div className="mt-4 border border-border bg-muted px-4 py-2 text-center text-[11px] sm:max-w-xs">
+            <p className="font-semibold text-foreground">{totalCount}</p>
+            <p className="text-muted-foreground">Entries</p>
           </div>
         </section>
 
@@ -215,7 +196,7 @@ export default function SessionFormEntriesPage() {
               Entries ({totalCount})
             </h2>
             <p className="text-xs text-muted-foreground">
-              Drafts open in edit mode · Submitted entries are read-only
+              Entries autosave as you edit
             </p>
           </div>
 
@@ -276,9 +257,7 @@ export default function SessionFormEntriesPage() {
                       entryLabel={`Entry #${stableEntryId.slice(-6)}`}
                       isDeleting={isDeleting}
                       onOpen={() =>
-                        router.push(
-                          fillPath(sessionId, formCode, entry.status),
-                        )
+                        router.push(fillPath(sessionId, formCode))
                       }
                       onDelete={
                         entry.status === "draft"

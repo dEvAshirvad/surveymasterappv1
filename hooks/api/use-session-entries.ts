@@ -10,7 +10,6 @@ import {
   getOrCreateFormEntry,
   listSessionEntries,
   patchSessionEntry,
-  submitSessionEntry,
   type SessionEntryProgress,
 } from "@/lib/api/endpoints/session-entries";
 import { queryKeys } from "@/lib/api/query-keys";
@@ -200,37 +199,6 @@ export function useDeleteSessionEntry(sessionId?: string, formCode?: string) {
       void queryClient.invalidateQueries({
         queryKey: ["entries", sessionId, formCode],
       });
-    },
-  });
-}
-
-export function useSubmitSessionEntry(sessionId?: string, entryId?: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: { expectedVersion: number; formCode?: string }) => {
-      if (!sessionId || !entryId) {
-        throw new Error("Missing session or entry id.");
-      }
-
-      return submitSessionEntry({
-        sessionId,
-        entryId,
-        expectedVersion: input.expectedVersion,
-      });
-    },
-    onSuccess: (_, variables) => {
-      if (!sessionId || !entryId) return;
-
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.entries.detail(sessionId, entryId),
-      });
-
-      if (variables.formCode) {
-        void queryClient.invalidateQueries({
-          queryKey: ["entries", sessionId, variables.formCode],
-        });
-      }
     },
   });
 }

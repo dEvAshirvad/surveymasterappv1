@@ -14,9 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-IN", {
@@ -50,16 +48,7 @@ export function EntryCard({
 
   return (
     <article className="border border-border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <Badge
-          variant="outline"
-          className={cn(
-            "border-border bg-muted font-semibold",
-            !isDraft && "border-primary/30 bg-primary/5 text-primary",
-          )}
-        >
-          {entry.status.toUpperCase()}
-        </Badge>
+      <div className="mb-3 flex items-center justify-end">
         <ClipboardList className="size-4 text-muted-foreground" />
       </div>
 
@@ -91,7 +80,7 @@ export function EntryCard({
         onClick={onOpen}
         className="mt-4 w-full bg-primary text-primary-foreground hover:bg-primary/90"
       >
-        {isDraft ? "Resume Entry" : "View Entry"}
+        Open Entry
         <ArrowRight className="size-3.5" />
       </Button>
 

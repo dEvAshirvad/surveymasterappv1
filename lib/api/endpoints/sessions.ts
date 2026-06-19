@@ -35,8 +35,6 @@ export type SessionDetail = SessionListItem & {
 export type SessionFormsSummaryItem = {
   formCode: string;
   total: number;
-  draft: number;
-  submitted: number;
 };
 
 export type SessionFormsSummary = {

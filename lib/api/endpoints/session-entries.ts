@@ -134,19 +134,6 @@ export async function patchSessionEntry(params: {
   );
 }
 
-export async function submitSessionEntry(params: {
-  sessionId: string;
-  entryId: string;
-  expectedVersion: number;
-}) {
-  const { sessionId, entryId, expectedVersion } = params;
-
-  return apiPost<{ id: string; status: SessionEntryStatus; version: number }>(
-    `/api/v1/sessions/${sessionId}/entries/${entryId}/submit`,
-    { expectedVersion },
-  );
-}
-
 export async function deleteSessionEntry(params: {
   sessionId: string;
   entryId: string;

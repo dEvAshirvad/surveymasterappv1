@@ -319,12 +319,7 @@ export default function FillByCodePage() {
             form={form}
             context={previewContext}
             progress={{ answered: 0, totalVisible: 0, percent: 0 }}
-            status="draft"
             saveState="idle"
-            isSubmitted
-            isSubmitting={false}
-            isSaving={false}
-            onSubmit={() => {}}
           />
 
           <div className="mt-4">{searchPanel}</div>
