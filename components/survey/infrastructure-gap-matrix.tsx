@@ -1,6 +1,10 @@
 "use client";
 
 import type { Question } from "@/components/forms/types";
+import {
+  resolveSelectChange,
+  resolveSelectValue,
+} from "@/components/forms/scheme-options";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -121,48 +125,59 @@ export function InfrastructureGapMatrix({
                 <p className="font-medium text-foreground">{row.label.en}</p>
                 <p className="text-[12px] text-muted-foreground">{row.label.hi}</p>
               </TableCell>
-              {cols.map((col) => (
-                <TableCell key={`${row.value}-${col.value}`} className="min-w-[100px]">
-                  {col.inputType === "dropdown" ? (
-                    <Select
-                      value={matrixValue[row.value]?.[col.value] || undefined}
-                      onValueChange={(next) => handleCellChange(row.value, col.value, next)}
-                      disabled={disabled}
-                    >
-                      <SelectTrigger className="h-8 w-full rounded-none border-border bg-card">
-                        <SelectValue placeholder="Select option" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(col.dropdownOptions ?? []).map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label.en}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      type="text"
-                      inputMode={col.inputType === "text" ? "text" : "decimal"}
-                      value={matrixValue[row.value]?.[col.value] ?? ""}
-                      onChange={(event) => {
-                        const next = event.target.value.trimStart();
-                        const inputType = col.inputType ?? "number";
-                        if (
-                          inputType === "text" ||
-                          next === "" ||
-                          numericPattern.test(next)
-                        ) {
-                          handleCellChange(row.value, col.value, next);
+              {cols.map((col) => {
+                const dropdownOptions = col.dropdownOptions ?? [];
+                const cellValue = matrixValue[row.value]?.[col.value] ?? "";
+
+                return (
+                  <TableCell key={`${row.value}-${col.value}`} className="min-w-[100px]">
+                    {col.inputType === "dropdown" ? (
+                      <Select
+                        value={resolveSelectValue(cellValue, dropdownOptions)}
+                        onValueChange={(next) =>
+                          handleCellChange(
+                            row.value,
+                            col.value,
+                            resolveSelectChange(next, dropdownOptions),
+                          )
                         }
-                      }}
-                      disabled={disabled}
-                      placeholder={col.inputType === "text" ? "Enter text" : "0"}
-                      className="h-8 rounded-none border-border bg-card"
-                    />
-                  )}
-                </TableCell>
-              ))}
+                        disabled={disabled}
+                      >
+                        <SelectTrigger className="h-8 w-full rounded-none border-border bg-card">
+                          <SelectValue placeholder="Select option" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {dropdownOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label.en}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        type="text"
+                        inputMode={col.inputType === "text" ? "text" : "decimal"}
+                        value={matrixValue[row.value]?.[col.value] ?? ""}
+                        onChange={(event) => {
+                          const next = event.target.value.trimStart();
+                          const inputType = col.inputType ?? "number";
+                          if (
+                            inputType === "text" ||
+                            next === "" ||
+                            numericPattern.test(next)
+                          ) {
+                            handleCellChange(row.value, col.value, next);
+                          }
+                        }}
+                        disabled={disabled}
+                        placeholder={col.inputType === "text" ? "Enter text" : "0"}
+                        className="h-8 rounded-none border-border bg-card"
+                      />
+                    )}
+                  </TableCell>
+                );
+              })}
             </TableRow>
           ))}
         </TableBody>

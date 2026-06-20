@@ -3,9 +3,11 @@
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { getForm } from "@/components/forms/forms";
 import { FillEntryEditor, FillPageError, FillPageLoading } from "@/components/survey/fill-entry-editor";
+import { FillFormNavControls } from "@/components/survey/fill-form-nav";
 import { FillPageHeader } from "@/components/survey/fill-page-header";
 import { FormNoteCallout } from "@/components/survey/form-note-callout";
 import { FormTable } from "@/components/survey/form-table";
@@ -31,6 +33,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getDraftBySessionAndForm } from "@/lib/storage/draft-store";
+import type { SessionEntry } from "@/lib/api/endpoints/session-entries";
 
 function toSectionSlug(formCode: string) {
   return `section-${formCode.toLowerCase()}`;
@@ -190,12 +194,19 @@ export default function FillByCodePage() {
   const formCode = params?.formCode?.toUpperCase();
   const form = useMemo(() => (formCode ? getForm(formCode) : undefined), [formCode]);
   const selectedSessionId = searchParams.get("sessionID") ?? undefined;
+  const queryClient = useQueryClient();
 
   const [district, setDistrict] = useState("");
   const [block, setBlock] = useState("");
   const [gramPanchayat, setGramPanchayat] = useState("");
+  const [debouncedFilters, setDebouncedFilters] = useState({
+    district: "",
+    block: "",
+    gramPanchayat: "",
+  });
   const [gramPopoverOpen, setGramPopoverOpen] = useState(false);
   const [entryId, setEntryId] = useState<string | undefined>();
+  const [offlineSessionContext, setOfflineSessionContext] = useState<SessionContext | null>(null);
 
   const districtQuery = useSessionDistrictOptions();
   const blockQuery = useSessionBlockOptions(district || undefined);
@@ -203,10 +214,17 @@ export default function FillByCodePage() {
     district || undefined,
     block || undefined,
   );
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters({ district, block, gramPanchayat });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [block, district, gramPanchayat]);
+
   const sessionsQuery = useSessionSearch({
-    district: district || undefined,
-    block: block || undefined,
-    gramPanchayat: gramPanchayat || undefined,
+    district: debouncedFilters.district || undefined,
+    block: debouncedFilters.block || undefined,
+    gramPanchayat: debouncedFilters.gramPanchayat || undefined,
   });
 
   const getOrCreateMutation = useGetOrCreateFormEntry(selectedSessionId);
@@ -217,11 +235,53 @@ export default function FillByCodePage() {
   useEffect(() => {
     setEntryId(undefined);
     inFlightKeyRef.current = null;
+    setOfflineSessionContext(null);
   }, [formCode, selectedSessionId]);
 
   useEffect(() => {
     if (!selectedSessionId || !formCode) return;
+    const sessionId = selectedSessionId;
+    const currentFormCode = formCode;
+    let ignore = false;
+
+    async function hydrateOfflineDraft() {
+      const draft = await getDraftBySessionAndForm(sessionId, currentFormCode);
+      if (ignore || !draft) return;
+
+      setEntryId(draft.entryId);
+      setOfflineSessionContext(draft.context);
+
+      const optimisticEntry: SessionEntry = {
+        id: draft.entryId,
+        sessionId: draft.sessionId,
+        formCode: draft.formCode,
+        status: "draft",
+        answers: draft.answers,
+        progress: draft.progress,
+        contextSnapshot: draft.context,
+        version: draft.version,
+        createdAt: draft.updatedAt,
+        updatedAt: draft.updatedAt,
+        submittedAt: null,
+        deletedAt: null,
+      };
+
+      queryClient.setQueryData(
+        ["entry", sessionId, draft.entryId],
+        optimisticEntry,
+      );
+    }
+
+    void hydrateOfflineDraft();
+    return () => {
+      ignore = true;
+    };
+  }, [formCode, queryClient, selectedSessionId]);
+
+  useEffect(() => {
+    if (!selectedSessionId || !formCode) return;
     if (entryId) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
     if (getOrCreateMutation.isPending) return;
 
     const currentKey = `${selectedSessionId}:${formCode}`;
@@ -334,6 +394,10 @@ export default function FillByCodePage() {
               disabled
             />
           </div>
+
+          <div className="mt-4 flex justify-end border border-border bg-card px-4 py-4">
+            <FillFormNavControls sessionId="" formCode={form.code} variant="footer" />
+          </div>
         </main>
       </div>
     );
@@ -350,11 +414,13 @@ export default function FillByCodePage() {
     return <FillPageLoading />;
   }
 
+  const resolvedSessionContext = sessionQuery.data?.context ?? offlineSessionContext;
+
   if (
     getOrCreateMutation.isError ||
     entryQuery.isError ||
-    sessionQuery.isError ||
-    !sessionQuery.data
+    (sessionQuery.isError && !resolvedSessionContext) ||
+    !resolvedSessionContext
   ) {
     return (
       <FillPageError message="The entry, session, or form definition could not be loaded." />
@@ -368,12 +434,8 @@ export default function FillByCodePage() {
       section={toSectionSlug(form.code)}
       entry={entryQuery.data}
       form={form}
-      context={sessionQuery.data.context}
+      context={resolvedSessionContext}
       topContent={searchPanel}
-      onRefetchEntry={async () => {
-        const result = await entryQuery.refetch();
-        return { data: result.data };
-      }}
     />
   );
 }

@@ -22,4 +22,15 @@ export const queryKeys = {
     detail: (sessionId: string, entryId: string) =>
       ["entry", sessionId, entryId] as const,
   },
+  admin: {
+    dashboard: (filters: Record<string, string | undefined>) =>
+      ["admin", "dashboard", filters] as const,
+    sessions: (
+      filters: Record<string, string | undefined>,
+      page: number,
+      limit: number,
+    ) => ["admin", "sessions", filters, page, limit] as const,
+    sessionDetail: (sessionId: string) =>
+      ["admin", "session", sessionId] as const,
+  },
 } as const;

@@ -10,6 +10,7 @@
 //  - The Gap Matrix is ONE `matrix` question, never expanded to one-question-per-cell.
 
 import type { FormDef } from "./types";
+import { withSchemeNoneOption } from "./scheme-options";
 
 const yesNo = [
   { value: "Yes", label: { en: "Yes", hi: "हां" } },
@@ -22,7 +23,7 @@ const requirementMatrixCols = [
   { value: "estCost", label: { en: "Est. cost (₹ lakh)", hi: "अनुमानित लागत (₹ लाख)" }, inputType: "number" as const },
 ];
 
-const formSchemeOptions: Record<string, Array<{ value: string; label: { en: string; hi: string } }>> = {
+const rawFormSchemeOptions: Record<string, Array<{ value: string; label: { en: string; hi: string } }>> = {
   A: [
     { value: "A_SCHEME_1", label: { en: "A Scheme 1", hi: "A योजना 1" } },
     { value: "A_SCHEME_2", label: { en: "A Scheme 2", hi: "A योजना 2" } },
@@ -84,6 +85,13 @@ const formSchemeOptions: Record<string, Array<{ value: string; label: { en: stri
     { value: "O_SCHEME_2", label: { en: "O Scheme 2", hi: "O योजना 2" } },
   ],
 };
+
+const formSchemeOptions = Object.fromEntries(
+  Object.entries(rawFormSchemeOptions).map(([key, options]) => [
+    key,
+    withSchemeNoneOption(options),
+  ]),
+) as typeof rawFormSchemeOptions;
 
 export const FORMS: FormDef[] = [
   // ============================================================

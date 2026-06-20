@@ -2,21 +2,13 @@
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 import type { FormDef } from "@/components/forms/types";
-import { FORMS } from "@/components/forms/forms";
+import { FillFormNavControls } from "@/components/survey/fill-form-nav";
 import type { SessionContext } from "@/lib/api/endpoints/sessions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 type FillPageHeaderProps = {
   sessionId: string;
@@ -25,6 +17,14 @@ type FillPageHeaderProps = {
   progress: { answered: number; totalVisible: number; percent: number };
   saveState: string;
 };
+
+function formatSaveState(saveState: string) {
+  const normalized = saveState.toLowerCase();
+  if (normalized === "offline") return "offline (queued)";
+  if (normalized === "queued") return "queued for sync";
+  if (normalized === "saving") return "syncing";
+  return normalized;
+}
 
 function buildBreadcrumb(context: SessionContext) {
   return [
@@ -42,18 +42,6 @@ export function FillPageHeader({
   progress,
   saveState,
 }: FillPageHeaderProps) {
-  const router = useRouter();
-  const formIndex = FORMS.findIndex((item) => item.code === form.code);
-  const formPosition = formIndex >= 0 ? formIndex + 1 : 1;
-  const formTotal = FORMS.length;
-
-  function handleFormChange(nextFormCode: string) {
-    if (nextFormCode === form.code) return;
-
-    const base = `/fill/${nextFormCode}`;
-    router.push(sessionId ? `${base}?sessionID=${sessionId}` : base);
-  }
-
   return (
     <header className="">
       <div className="border-b py-2">
@@ -92,32 +80,18 @@ export function FillPageHeader({
         </div>
 
         <div className="flex flex-col items-end gap-2 h-full justify-between">
-          <div className="flex items-center gap-2">
-            <Select value={form.code} onValueChange={handleFormChange}>
-              <SelectTrigger className="h-8 min-w-[220px] rounded-none border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground">
-                <SelectValue placeholder="Select form" />
-              </SelectTrigger>
-              <SelectContent>
-                {FORMS.map((item, index) => (
-                  <SelectItem key={item.code} value={item.code}>
-                    Form {index + 1}/{formTotal} — Section {item.code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Badge
-              variant="outline"
-              className="border-primary-foreground/30 h-8 bg-primary-foreground/10 text-primary-foreground"
-            >
-              {formPosition}/{formTotal}
-            </Badge>
-          </div>
+          <FillFormNavControls
+            sessionId={sessionId}
+            formCode={form.code}
+            variant="header"
+            showNextButton={false}
+          />
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Badge
               variant="outline"
               className="border-primary-foreground/30 h-8 bg-primary-foreground/10 text-primary-foreground"
             >
-              Save: {saveState}
+              Save: {formatSaveState(saveState)}
             </Badge>
           </div>
         </div>

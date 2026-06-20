@@ -244,7 +244,7 @@ export function CrossSectorAutoMatrix({
                 <TableCell className={cn("min-w-[200px]", colBorder)}>{row.schemeCoverage || "—"}</TableCell>
                 <TableCell className={cn("min-w-[140px]", colBorder)}>
                   <Select
-                    value={matrixValue[row.rowKey]?.Priority || undefined}
+                    value={matrixValue[row.rowKey]?.Priority ?? ""}
                     onValueChange={(next) => updateManualCell(row.rowKey, "Priority", next)}
                     disabled={disabled}
                   >

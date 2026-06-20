@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, FileText, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +17,8 @@ import {
 import { useSessionDetail, useSessionFormsSummary } from "@/hooks/api/use-sessions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { DraftSyncStatus } from "@/lib/storage/draft-store";
+import { listDraftsBySession } from "@/lib/storage/draft-store";
 import {
   Pagination,
   PaginationContent,
@@ -44,6 +46,7 @@ export default function SessionFormEntriesPage() {
   const router = useRouter();
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [syncStateByEntryId, setSyncStateByEntryId] = useState<Record<string, DraftSyncStatus>>({});
 
   const sessionId = params?.sessionId;
   const rawFormCode = params?.formCode;
@@ -73,6 +76,24 @@ export default function SessionFormEntriesPage() {
   const currentPage = pagination?.page ?? page;
   const hasPrev = currentPage > 1;
   const hasNext = currentPage < totalPages;
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let ignore = false;
+    async function loadDraftStatuses() {
+      const drafts = await listDraftsBySession(sessionId);
+      if (ignore) return;
+      const mapped = drafts.reduce<Record<string, DraftSyncStatus>>((acc, draft) => {
+        acc[draft.entryId] = draft.syncStatus;
+        return acc;
+      }, {});
+      setSyncStateByEntryId(mapped);
+    }
+    void loadDraftStatuses();
+    return () => {
+      ignore = true;
+    };
+  }, [sessionId, entriesQuery.data?.items]);
 
   const handleCreateEntry = async () => {
     if (!sessionId || !formCode) {
@@ -256,6 +277,7 @@ export default function SessionFormEntriesPage() {
                       entry={entry}
                       entryLabel={`Entry #${stableEntryId.slice(-6)}`}
                       isDeleting={isDeleting}
+                      syncStatus={syncStateByEntryId[stableEntryId]}
                       onOpen={() =>
                         router.push(fillPath(sessionId, formCode))
                       }

@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 function formatDate(value: string) {
@@ -35,6 +36,7 @@ type EntryCardProps = {
   onOpen: () => void;
   onDelete?: () => Promise<void>;
   isDeleting?: boolean;
+  syncStatus?: "synced" | "queued" | "syncing" | "offline" | "error" | "conflict";
 };
 
 export function EntryCard({
@@ -43,6 +45,7 @@ export function EntryCard({
   onOpen,
   onDelete,
   isDeleting = false,
+  syncStatus,
 }: EntryCardProps) {
   const isDraft = entry.status === "draft";
 
@@ -56,6 +59,11 @@ export function EntryCard({
       <p className="mt-1 text-[13px] text-muted-foreground">
         Last updated {formatDate(entry.updatedAt)}
       </p>
+      {syncStatus ? (
+        <Badge variant="outline" className="mt-2 text-[10px] uppercase tracking-wide">
+          {syncStatus}
+        </Badge>
+      ) : null}
 
       <div className="mt-4 grid grid-cols-3 gap-2 text-[11px]">
         <div className="border border-border bg-muted px-2 py-1 text-center">

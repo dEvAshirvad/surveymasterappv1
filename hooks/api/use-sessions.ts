@@ -22,6 +22,7 @@ export function useSessions() {
   return useQuery({
     queryKey: queryKeys.sessions.list(),
     queryFn: () => listSessions(),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -34,6 +35,7 @@ export function useSessionSearch(filters: SessionSearchFilters) {
     ),
     enabled: Boolean(filters.district || filters.block || filters.gramPanchayat),
     queryFn: () => searchSessions(filters),
+    staleTime: 2 * 60 * 1000,
   });
 }
 
@@ -41,6 +43,7 @@ export function useSessionDistrictOptions() {
   return useQuery({
     queryKey: queryKeys.sessions.districtOptions(),
     queryFn: listSessionDistrictOptions,
+    staleTime: 24 * 60 * 60 * 1000,
   });
 }
 
@@ -49,6 +52,7 @@ export function useSessionBlockOptions(district?: string) {
     queryKey: queryKeys.sessions.blockOptions(district),
     enabled: Boolean(district),
     queryFn: () => listSessionBlockOptions(district as string),
+    staleTime: 24 * 60 * 60 * 1000,
   });
 }
 
@@ -57,6 +61,7 @@ export function useSessionGramPanchayatOptions(district?: string, block?: string
     queryKey: queryKeys.sessions.gramPanchayatOptions(district, block),
     enabled: Boolean(district && block),
     queryFn: () => listSessionGramPanchayatOptions(district as string, block as string),
+    staleTime: 24 * 60 * 60 * 1000,
   });
 }
 
@@ -65,6 +70,7 @@ export function useSessionDetail(sessionId?: string) {
     queryKey: sessionId ? queryKeys.sessions.detail(sessionId) : ["sessions", "disabled"],
     enabled: Boolean(sessionId),
     queryFn: () => getSessionDetail(sessionId as string),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -75,6 +81,7 @@ export function useSessionFormsSummary(sessionId?: string) {
       : ["sessions", "forms-summary", "disabled"],
     enabled: Boolean(sessionId),
     queryFn: () => getSessionFormsSummary(sessionId as string),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -85,7 +92,10 @@ export function useCreateSession() {
     mutationFn: (payload: CreateSessionPayload) => createSession(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.sessions.all,
+        queryKey: queryKeys.sessions.list(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.sessions.search(),
       });
     },
   });
@@ -98,7 +108,10 @@ export function useUpdateSession(sessionId: string) {
     mutationFn: (payload: UpdateSessionPayload) => updateSession(sessionId, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.sessions.all,
+        queryKey: queryKeys.sessions.list(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.sessions.search(),
       });
       void queryClient.invalidateQueries({
         queryKey: queryKeys.sessions.detail(sessionId),

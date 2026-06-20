@@ -9,6 +9,10 @@ import type {
   Question,
   TieredAccessAnswer,
 } from "@/components/forms/types";
+import {
+  resolveSelectChange,
+  resolveSelectValue,
+} from "@/components/forms/scheme-options";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -84,6 +88,7 @@ function SmallMatrixField({
             <TableRow key={row.value}>
               {cols.map((col) => {
                 const cellValue = value[row.value]?.[col.value] ?? "";
+                const dropdownOptions = col.dropdownOptions ?? [];
                 const isLabelCol =
                   col.inputType === undefined &&
                   (col.value === "type" || col.value === "item");
@@ -100,15 +105,21 @@ function SmallMatrixField({
                   <TableCell key={col.value} className="min-w-[100px] px-2 py-1">
                     {col.inputType === "dropdown" ? (
                       <Select
-                        value={cellValue || undefined}
-                        onValueChange={(next) => handleCellChange(row.value, col.value, next)}
+                        value={resolveSelectValue(cellValue, dropdownOptions)}
+                        onValueChange={(next) =>
+                          handleCellChange(
+                            row.value,
+                            col.value,
+                            resolveSelectChange(next, dropdownOptions),
+                          )
+                        }
                         disabled={disabled}
                       >
                         <SelectTrigger className={cn(inputClassName, "h-7 w-full min-w-[80px]")}>
                           <SelectValue placeholder="Select option" />
                         </SelectTrigger>
                         <SelectContent>
-                          {(col.dropdownOptions ?? []).map((option) => (
+                          {dropdownOptions.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
                               {option.label.en}
                             </SelectItem>
@@ -517,12 +528,12 @@ export function ResponseCell({
 
   if (question.type === "dropdown") {
     const dropdownOptions = question.dropdownOptions ?? [];
-    const selectValue = stringValue || undefined;
+    const selectValue = stringValue;
 
     return (
       <Select
-        value={selectValue}
-        onValueChange={onChange}
+        value={resolveSelectValue(selectValue, dropdownOptions)}
+        onValueChange={(next) => onChange(resolveSelectChange(next, dropdownOptions))}
         disabled={disabled}
       >
         <SelectTrigger className="h-8 w-full max-w-[280px] rounded-none border-border bg-card">
@@ -661,24 +672,35 @@ export function ResponseCell({
             ) : null}
 
             {activeRule.detail.mode === "dropdown" ? (
-              <Select
-                value={typeof conditionalValue?.detail === "string" ? conditionalValue.detail : undefined}
-                onValueChange={(nextDetail) =>
-                  onChange({ primary: conditionalPrimary, detail: nextDetail })
-                }
-                disabled={disabled}
-              >
-                <SelectTrigger className="h-8 w-full max-w-[320px] rounded-none border-border bg-card">
-                  <SelectValue placeholder="Select option" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(activeRule.detail.options ?? []).map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label.en}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              (() => {
+                const detailOptions = activeRule.detail.options ?? [];
+                const detailValue =
+                  typeof conditionalValue?.detail === "string" ? conditionalValue.detail : "";
+
+                return (
+                  <Select
+                    value={resolveSelectValue(detailValue, detailOptions)}
+                    onValueChange={(nextDetail) =>
+                      onChange({
+                        primary: conditionalPrimary,
+                        detail: resolveSelectChange(nextDetail, detailOptions),
+                      })
+                    }
+                    disabled={disabled}
+                  >
+                    <SelectTrigger className="h-8 w-full max-w-[320px] rounded-none border-border bg-card">
+                      <SelectValue placeholder="Select option" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {detailOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label.en}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              })()
             ) : null}
 
             {activeRule.detail.mode === "date" ? (

@@ -11,6 +11,7 @@ import {
   listSessionEntries,
   patchSessionEntry,
   type SessionEntryProgress,
+  type SessionEntry,
 } from "@/lib/api/endpoints/session-entries";
 import { queryKeys } from "@/lib/api/query-keys";
 
@@ -38,12 +39,14 @@ export function useSessionEntries(params: {
         page: pageNumber,
         limit: pageLimit,
       }),
+    staleTime: 2 * 60 * 1000,
   });
 }
 
 export function useSessionEntriesByFormCodes(
   sessionId: string | undefined,
   formCodes: string[],
+  localByFormCode: Record<string, EntryAnswerItem[]> = {},
 ) {
   const normalizedCodes = [...new Set(formCodes.map((code) => code.toUpperCase()))];
   const queryResults = useQueries({
@@ -51,7 +54,7 @@ export function useSessionEntriesByFormCodes(
       queryKey: sessionId
         ? queryKeys.entries.bySessionForm(sessionId, formCode, 1, 1)
         : ["entries", "disabled", formCode],
-      enabled: Boolean(sessionId),
+      enabled: Boolean(sessionId) && !(localByFormCode[formCode]?.length),
       queryFn: () =>
         listSessionEntries({
           sessionId: sessionId as string,
@@ -59,12 +62,16 @@ export function useSessionEntriesByFormCodes(
           page: 1,
           limit: 1,
         }),
+      staleTime: 15 * 60 * 1000,
     })),
   });
 
   const dataByFormCode = normalizedCodes.reduce<Record<string, EntryAnswerItem[]>>(
     (acc, formCode, index) => {
-      acc[formCode] = queryResults[index].data?.items?.[0]?.answers ?? [];
+      const local = localByFormCode[formCode];
+      acc[formCode] = local?.length
+        ? local
+        : queryResults[index].data?.items?.[0]?.answers ?? [];
       return acc;
     },
     {},
@@ -111,6 +118,7 @@ export function useSessionEntry(sessionId?: string, entryId?: string) {
         sessionId: sessionId as string,
         entryId: entryId as string,
       }),
+    staleTime: 30 * 60 * 1000,
   });
 }
 
@@ -166,12 +174,25 @@ export function usePatchSessionEntry(sessionId?: string, entryId?: string) {
         contextSnapshot: input.contextSnapshot,
       });
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (result, variables) => {
       if (!sessionId || !entryId) return;
 
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.entries.detail(sessionId, entryId),
-      });
+      queryClient.setQueryData(
+        queryKeys.entries.detail(sessionId, entryId),
+        (previous: SessionEntry | undefined) => {
+          if (!previous) return previous;
+          return {
+            ...previous,
+            version: result.version,
+            answers: variables.answers ?? previous.answers,
+            progress: variables.progress ?? previous.progress,
+            contextSnapshot: variables.contextSnapshot
+              ? { ...previous.contextSnapshot, ...variables.contextSnapshot }
+              : previous.contextSnapshot,
+            updatedAt: new Date().toISOString(),
+          };
+        },
+      );
 
       if (variables.formCode) {
         void queryClient.invalidateQueries({

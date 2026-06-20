@@ -14,20 +14,36 @@ import {
   type Question,
 } from "@/components/forms/types";
 import { FillPageHeader } from "@/components/survey/fill-page-header";
+import { FillFormNavControls } from "@/components/survey/fill-form-nav";
 import { FormNoteCallout } from "@/components/survey/form-note-callout";
 import { FormTable } from "@/components/survey/form-table";
 import { SessionMetaBar } from "@/components/survey/session-meta-bar";
 import {
-  usePatchSessionEntry,
   useSessionEntriesByFormCodes,
 } from "@/hooks/api/use-session-entries";
 import type { EntryAnswerItem } from "@/lib/api/endpoints/session-entries";
 import type { SessionContext } from "@/lib/api/endpoints/sessions";
 import type { SessionEntry } from "@/lib/api/endpoints/session-entries";
-import { ApiError } from "@/lib/api/envelope";
 import { Button } from "@/components/ui/button";
+import {
+  getDraft,
+  getDraftAnswersByFormCodes,
+  makeDraftId,
+  upsertDraft,
+} from "@/lib/storage/draft-store";
+import { enqueueOutboxItem } from "@/lib/storage/outbox-store";
+import { isOnline } from "@/lib/sync/connectivity";
+import { flushSyncOutbox } from "@/lib/sync/sync-engine";
 
-type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
+type SaveState =
+  | "idle"
+  | "saving"
+  | "syncing"
+  | "saved"
+  | "error"
+  | "conflict"
+  | "queued"
+  | "offline";
 const CROSS_SECTOR_CODES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
 
 type EditableContextSnapshot = Pick<
@@ -230,7 +246,7 @@ export type FillEntryEditorProps = {
   form: FormDef;
   context: SessionContext;
   topContent?: ReactNode;
-  onRefetchEntry: () => Promise<{ data?: SessionEntry }>;
+  onRefetchEntry?: () => Promise<{ data?: SessionEntry }>;
 };
 
 export function FillEntryEditor({
@@ -240,12 +256,14 @@ export function FillEntryEditor({
   form,
   context,
   topContent,
-  onRefetchEntry,
 }: FillEntryEditorProps) {
-  const patchMutation = usePatchSessionEntry(sessionId, entry.id);
+  const [localSourceAnswersByFormCode, setLocalSourceAnswersByFormCode] = useState<
+    Record<string, EntryAnswerItem[]>
+  >({});
   const crossSectorEntries = useSessionEntriesByFormCodes(
     sessionId,
     form.code === "O" ? CROSS_SECTOR_CODES : [],
+    localSourceAnswersByFormCode,
   );
 
   const [answers, setAnswers] = useState<EntryAnswerItem[]>(
@@ -258,12 +276,6 @@ export function FillEntryEditor({
   const [saveState, setSaveState] = useState<SaveState>("idle");
 
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const patchMutationRef = useRef(patchMutation);
-  const onRefetchEntryRef = useRef(onRefetchEntry);
-  const contextRef = useRef(context);
-  patchMutationRef.current = patchMutation;
-  onRefetchEntryRef.current = onRefetchEntry;
-  contextRef.current = context;
 
   const lastSavedSnapshotRef = useRef<string>(
     JSON.stringify({
@@ -278,6 +290,46 @@ export function FillEntryEditor({
   const liveProgress = useMemo(() => computeProgress(form, answers), [answers, form]);
 
   useEffect(() => {
+    let ignore = false;
+
+    async function hydrateDraft() {
+      const localDraft = await getDraft(sessionId, entry.id);
+      if (ignore || !localDraft) return;
+
+      setAnswers(localDraft.answers);
+      setContextSnapshot(localDraft.context);
+      setVersion(localDraft.version);
+      setSaveState(localDraft.syncStatus === "synced" ? "saved" : localDraft.syncStatus);
+      lastSavedSnapshotRef.current = JSON.stringify({
+        answers: serializeAnswersForPatch(form, localDraft.answers),
+        contextSnapshot: pickEditableContextSnapshot(localDraft.context),
+      });
+    }
+
+    void hydrateDraft();
+    return () => {
+      ignore = true;
+    };
+  }, [entry.id, form, sessionId]);
+
+  useEffect(() => {
+    if (form.code !== "O") return;
+    let ignore = false;
+
+    async function hydrateCrossSectorAnswers() {
+      const local = await getDraftAnswersByFormCodes(sessionId, CROSS_SECTOR_CODES);
+      if (!ignore) {
+        setLocalSourceAnswersByFormCode(local);
+      }
+    }
+
+    void hydrateCrossSectorAnswers();
+    return () => {
+      ignore = true;
+    };
+  }, [form.code, sessionId, answers]);
+
+  useEffect(() => {
     const editableContextSnapshot = pickEditableContextSnapshot(contextSnapshot);
     const serializedAnswers = serializeAnswersForPatch(form, answers);
     const currentSnapshot = JSON.stringify({
@@ -290,54 +342,52 @@ export function FillEntryEditor({
       clearTimeout(autosaveTimerRef.current);
     }
 
-    setSaveState("saving");
+    setSaveState(isOnline() ? "saving" : "offline");
 
     autosaveTimerRef.current = setTimeout(async () => {
       try {
         const nextProgress = computeProgress(form, answers);
-        const patched = await patchMutationRef.current.mutateAsync({
+        await upsertDraft({
+          sessionId,
+          entryId: entry.id,
+          formCode: entry.formCode,
+          answers: serializedAnswers,
+          progress: nextProgress,
+          context: contextSnapshot,
+          version,
+          syncStatus: isOnline() ? "queued" : "offline",
+        });
+
+        await enqueueOutboxItem({
+          draftId: makeDraftId(sessionId, entry.id),
+          sessionId,
+          entryId: entry.id,
+          formCode: entry.formCode,
           expectedVersion: version,
           answers: serializedAnswers,
           progress: nextProgress,
           contextSnapshot: editableContextSnapshot,
-          formCode: entry.formCode,
         });
 
-        setVersion(patched.version);
         lastSavedSnapshotRef.current = currentSnapshot;
-        setSaveState("saved");
-      } catch (error) {
-        if (error instanceof ApiError && error.code === "VERSION_CONFLICT") {
-          const latest = await onRefetchEntryRef.current();
-          const latestEntry = latest.data;
-
-          if (latestEntry) {
-            setVersion(latestEntry.version);
-            setAnswers(latestEntry.answers ?? []);
-            setContextSnapshot((previous) =>
-              mergeSessionContextWithSnapshot(contextRef.current, {
-                ...latestEntry.contextSnapshot,
-                ...pickEditableContextSnapshot(previous),
-              }),
-            );
-            lastSavedSnapshotRef.current = JSON.stringify({
-              answers: serializeAnswersForPatch(form, latestEntry.answers ?? []),
-              contextSnapshot: pickEditableContextSnapshot(
-                mergeSessionContextWithSnapshot(
-                  contextRef.current,
-                  latestEntry.contextSnapshot,
-                ),
-              ),
-            });
-          }
-
-          setSaveState("conflict");
-          toast.error("Entry changed elsewhere. Latest version loaded. Please retry.");
+        if (!isOnline()) {
+          setSaveState("offline");
           return;
         }
 
-        setSaveState("error");
-        lastSavedSnapshotRef.current = currentSnapshot;
+        setSaveState("queued");
+        const flushResult = await flushSyncOutbox();
+        const nextVersion = flushResult.latestVersionByDraftId[makeDraftId(sessionId, entry.id)];
+        if (nextVersion !== undefined) {
+          setVersion(nextVersion);
+          setSaveState("saved");
+        } else if (flushResult.failed > 0) {
+          setSaveState("error");
+        } else {
+          setSaveState("queued");
+        }
+      } catch (error) {
+        setSaveState(isOnline() ? "error" : "offline");
         const message = error instanceof Error ? error.message : "Autosave failed.";
         toast.error(message);
       }
@@ -352,7 +402,9 @@ export function FillEntryEditor({
     answers,
     contextSnapshot,
     entry.formCode,
+    entry.id,
     form,
+    sessionId,
     version,
   ]);
 
@@ -409,6 +461,10 @@ export function FillEntryEditor({
             sourceAnswersByFormCode={crossSectorEntries.dataByFormCode}
             onAnswerChange={handleAnswerChange}
           />
+
+          <div className="flex justify-end border border-border bg-card px-4 py-4">
+            <FillFormNavControls sessionId={sessionId} formCode={form.code} variant="footer" />
+          </div>
         </div>
       </main>
     </div>

@@ -30,6 +30,11 @@ export default function Header() {
             Sessions
           </Button>
           </Link>
+          <Link href="/admin">
+            <Button variant="outline">
+              Admin
+            </Button>
+          </Link>
           <button
             aria-label="Help"
             className="inline-flex size-7 items-center justify-center border border-border hover:bg-muted"
