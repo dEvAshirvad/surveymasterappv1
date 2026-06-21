@@ -17,12 +17,6 @@ const yesNo = [
   { value: "No", label: { en: "No", hi: "नहीं" } },
 ];
 
-const requirementMatrixCols = [
-  { value: "item", label: { en: "Item", hi: "वस्तु" } },
-  { value: "required", label: { en: "Required (nos)", hi: "आवश्यक (संख्या)" }, inputType: "number" as const },
-  { value: "estCost", label: { en: "Est. cost (₹ lakh)", hi: "अनुमानित लागत (₹ लाख)" }, inputType: "number" as const },
-];
-
 const rawFormSchemeOptions: Record<string, Array<{ value: string; label: { en: string; hi: string } }>> = {
   A: [
     { value: "A_SCHEME_1", label: { en: "A Scheme 1", hi: "A योजना 1" } },

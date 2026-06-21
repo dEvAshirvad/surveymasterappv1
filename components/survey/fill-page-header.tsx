@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, FileText } from "lucide-react";
 
 import type { FormDef } from "@/components/forms/types";
 import { FillFormNavControls } from "@/components/survey/fill-form-nav";
@@ -16,6 +16,10 @@ type FillPageHeaderProps = {
   context: SessionContext;
   progress: { answered: number; totalVisible: number; percent: number };
   saveState: string;
+  onDownloadPdf?: () => void;
+  onDownloadCsv?: () => void;
+  onDownloadXlsx?: () => void;
+  isDownloading?: boolean;
 };
 
 function formatSaveState(saveState: string) {
@@ -41,6 +45,10 @@ export function FillPageHeader({
   context,
   progress,
   saveState,
+  onDownloadPdf,
+  onDownloadCsv,
+  onDownloadXlsx,
+  isDownloading = false,
 }: FillPageHeaderProps) {
   return (
     <header className="">
@@ -87,6 +95,43 @@ export function FillPageHeader({
             showNextButton={false}
           />
           <div className="flex flex-wrap items-center justify-end gap-2">
+            {sessionId ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isDownloading || !onDownloadPdf}
+                  onClick={onDownloadPdf}
+                  className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10"
+                >
+                  <FileText className="size-4" />
+                  PDF
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isDownloading || !onDownloadCsv}
+                  onClick={onDownloadCsv}
+                  className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10"
+                >
+                  <FileText className="size-4" />
+                  CSV
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isDownloading || !onDownloadXlsx}
+                  onClick={onDownloadXlsx}
+                  className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10"
+                >
+                  <FileSpreadsheet className="size-4" />
+                  XLSX
+                </Button>
+              </>
+            ) : null}
             <Badge
               variant="outline"
               className="border-primary-foreground/30 h-8 bg-primary-foreground/10 text-primary-foreground"

@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, PencilLine, Plus } from "lucide-react";
+import { useSyncExternalStore } from "react";
+import { ArrowRight, Download, Loader2, PencilLine, Plus } from "lucide-react";
+import { toast } from "sonner";
 
 import Header from "@/components/Header";
+import { useDownloadSessionArchive } from "@/hooks/api/use-exports";
 import { useSessions } from "@/hooks/api/use-sessions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,8 +20,15 @@ function formatSurveyDate(value: string) {
 }
 
 export default function SessionsPage() {
+  const hasHydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const sessionsQuery = useSessions();
   const sessions = sessionsQuery.data ?? [];
+  const downloadArchiveMutation = useDownloadSessionArchive();
+  const showLoading = !hasHydrated || sessionsQuery.isLoading;
 
   return (
     <div className="min-h-screen bg-background">
@@ -41,7 +51,7 @@ export default function SessionsPage() {
             </Button>
           </div>
 
-          {sessionsQuery.isLoading ? (
+          {showLoading ? (
             <p className="text-sm text-muted-foreground">Loading sessions...</p>
           ) : null}
 
@@ -51,7 +61,7 @@ export default function SessionsPage() {
             </p>
           ) : null}
 
-          {!sessionsQuery.isLoading && sessions.length === 0 ? (
+          {!showLoading && sessions.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No sessions found. Create one to get started.
             </p>
@@ -86,6 +96,26 @@ export default function SessionsPage() {
                     </Link>
                   </Button>
                 </div>
+                <Button
+                  variant="outline"
+                  className="mt-2 w-full"
+                  disabled={downloadArchiveMutation.isPending}
+                  onClick={async () => {
+                    try {
+                      await downloadArchiveMutation.mutateAsync(session.id);
+                      toast.success("Session export downloaded.");
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : "Download failed.");
+                    }
+                  }}
+                >
+                  {downloadArchiveMutation.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Download className="size-4" />
+                  )}
+                  Download All (PDF, CSV, XLSX ZIP)
+                </Button>
               </article>
             ))}
           </div>

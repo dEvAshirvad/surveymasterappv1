@@ -44,7 +44,7 @@ export function QueryProvider({ children }: QueryProviderProps) {
 		if (typeof window === "undefined") return undefined;
 		return createSyncStoragePersister({
 			storage: window.localStorage,
-			key: "surveymaster-query-cache-v1",
+			key: "surveymaster-query-cache-v2",
 			throttleTime: 2000,
 		});
 	}, []);

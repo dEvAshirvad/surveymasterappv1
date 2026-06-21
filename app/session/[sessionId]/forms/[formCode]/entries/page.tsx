@@ -30,7 +30,7 @@ import {
 const PAGE_SIZE = 9;
 
 function fillPath(sessionId: string, formCode: string) {
-  return `/fill/${formCode}/edit?sessionID=${sessionId}`;
+  return `/fill/${formCode}/edit?sessionId=${sessionId}`;
 }
 
 function formatLocation(context: {

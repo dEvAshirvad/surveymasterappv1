@@ -19,6 +19,11 @@ import { FormNoteCallout } from "@/components/survey/form-note-callout";
 import { FormTable } from "@/components/survey/form-table";
 import { SessionMetaBar } from "@/components/survey/session-meta-bar";
 import {
+  useDownloadSessionFormCsv,
+  useDownloadSessionFormPdf,
+  useDownloadSessionFormXlsx,
+} from "@/hooks/api/use-exports";
+import {
   useSessionEntriesByFormCodes,
 } from "@/hooks/api/use-session-entries";
 import type { EntryAnswerItem } from "@/lib/api/endpoints/session-entries";
@@ -274,6 +279,9 @@ export function FillEntryEditor({
   );
   const [version, setVersion] = useState<number>(entry.version);
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const downloadPdfMutation = useDownloadSessionFormPdf();
+  const downloadCsvMutation = useDownloadSessionFormCsv();
+  const downloadXlsxMutation = useDownloadSessionFormXlsx();
 
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -435,6 +443,35 @@ export function FillEntryEditor({
           context={contextSnapshot}
           progress={liveProgress}
           saveState={saveState}
+          isDownloading={
+            downloadPdfMutation.isPending
+            || downloadCsvMutation.isPending
+            || downloadXlsxMutation.isPending
+          }
+          onDownloadPdf={async () => {
+            try {
+              await downloadPdfMutation.mutateAsync({ sessionId, formCode: form.code });
+              toast.success("PDF downloaded.");
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "PDF download failed.");
+            }
+          }}
+          onDownloadCsv={async () => {
+            try {
+              await downloadCsvMutation.mutateAsync({ sessionId, formCode: form.code });
+              toast.success("CSV downloaded.");
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "CSV download failed.");
+            }
+          }}
+          onDownloadXlsx={async () => {
+            try {
+              await downloadXlsxMutation.mutateAsync({ sessionId, formCode: form.code });
+              toast.success("XLSX downloaded.");
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "XLSX download failed.");
+            }
+          }}
         />
 
         {topContent ? <div className="mt-4">{topContent}</div> : null}

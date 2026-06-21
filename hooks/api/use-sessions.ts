@@ -43,7 +43,8 @@ export function useSessionDistrictOptions() {
   return useQuery({
     queryKey: queryKeys.sessions.districtOptions(),
     queryFn: listSessionDistrictOptions,
-    staleTime: 24 * 60 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
@@ -52,7 +53,8 @@ export function useSessionBlockOptions(district?: string) {
     queryKey: queryKeys.sessions.blockOptions(district),
     enabled: Boolean(district),
     queryFn: () => listSessionBlockOptions(district as string),
-    staleTime: 24 * 60 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
@@ -61,7 +63,8 @@ export function useSessionGramPanchayatOptions(district?: string, block?: string
     queryKey: queryKeys.sessions.gramPanchayatOptions(district, block),
     enabled: Boolean(district && block),
     queryFn: () => listSessionGramPanchayatOptions(district as string, block as string),
-    staleTime: 24 * 60 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 

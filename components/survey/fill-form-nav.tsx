@@ -41,7 +41,7 @@ export function FillFormNavControls({
     if (nextFormCode === formCode) return;
 
     const base = `/fill/${nextFormCode}`;
-    router.push(sessionId ? `${base}?sessionID=${sessionId}` : base);
+    router.push(sessionId ? `${base}?sessionId=${sessionId}` : base);
   }
 
   const isHeader = variant === "header";
