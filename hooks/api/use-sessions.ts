@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createSession,
+  deleteSession,
   type CreateSessionPayload,
   getSessionDetail,
   getSessionFormsSummary,
@@ -118,6 +119,28 @@ export function useUpdateSession(sessionId: string) {
       });
       void queryClient.invalidateQueries({
         queryKey: queryKeys.sessions.detail(sessionId),
+      });
+    },
+  });
+}
+
+export function useDeleteSession() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (sessionId: string) => deleteSession(sessionId),
+    onSuccess: (_, sessionId) => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.sessions.list(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.sessions.search(),
+      });
+      void queryClient.removeQueries({
+        queryKey: queryKeys.sessions.detail(sessionId),
+      });
+      void queryClient.removeQueries({
+        queryKey: queryKeys.sessions.formsSummary(sessionId),
       });
     },
   });

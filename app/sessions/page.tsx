@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
-import { ArrowRight, Download, Loader2, PencilLine, Plus } from "lucide-react";
+import { ArrowRight, Download, Loader2, PencilLine, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import Header from "@/components/Header";
 import { useDownloadSessionArchive } from "@/hooks/api/use-exports";
-import { useSessions } from "@/hooks/api/use-sessions";
+import { useDeleteSession, useSessions } from "@/hooks/api/use-sessions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -28,6 +28,7 @@ export default function SessionsPage() {
   const sessionsQuery = useSessions();
   const sessions = sessionsQuery.data ?? [];
   const downloadArchiveMutation = useDownloadSessionArchive();
+  const deleteSessionMutation = useDeleteSession();
   const showLoading = !hasHydrated || sessionsQuery.isLoading;
 
   return (
@@ -96,6 +97,34 @@ export default function SessionsPage() {
                     </Link>
                   </Button>
                 </div>
+                <Button
+                  variant="destructive"
+                  className="mt-2 w-full"
+                  disabled={deleteSessionMutation.isPending}
+                  onClick={async () => {
+                    const approved = window.confirm(
+                      "Delete this session and all related form entries permanently?",
+                    );
+                    if (!approved) {
+                      return;
+                    }
+                    try {
+                      const result = await deleteSessionMutation.mutateAsync(session.id);
+                      toast.success(
+                        `Session deleted (${result.deletedEntryCount} entries removed).`,
+                      );
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : "Delete failed.");
+                    }
+                  }}
+                >
+                  {deleteSessionMutation.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-4" />
+                  )}
+                  Delete Session
+                </Button>
                 <Button
                   variant="outline"
                   className="mt-2 w-full"

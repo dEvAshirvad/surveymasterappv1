@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from "@/lib/api/client";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api/client";
 
 export type SessionContext = {
   district: string;
@@ -76,6 +76,10 @@ export async function updateSession(
   payload: UpdateSessionPayload,
 ) {
   return apiPatch<SessionDetail>(`/api/v1/sessions/${sessionId}`, payload);
+}
+
+export async function deleteSession(sessionId: string) {
+  return apiDelete<{ id: string; deletedEntryCount: number }>(`/api/v1/sessions/${sessionId}`);
 }
 
 export async function listSessionDistrictOptions() {
