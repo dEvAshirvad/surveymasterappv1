@@ -19,6 +19,7 @@ import {
   useSessionDistrictOptions,
   useSessionGramPanchayatOptions,
   useSessionSearch,
+  useSessionVillageOptions,
 } from "@/hooks/api/use-sessions";
 import { getOrCreateFormEntry } from "@/lib/api/endpoints/session-entries";
 import type { SessionContext } from "@/lib/api/endpoints/sessions";
@@ -45,12 +46,13 @@ function makePreviewContext(
   district: string,
   block: string,
   gramPanchayat: string,
+  village: string,
 ): SessionContext {
   return {
     district: district || "—",
     block: block || "—",
     gramPanchayat: gramPanchayat || "—",
-    village: "—",
+    village: village || "—",
     surveyDate: new Date().toISOString(),
     totalPopulation: 0,
     totalHouseholds: 0,
@@ -75,6 +77,11 @@ type SessionSearchPanelProps = {
   gramPanchayats: string[];
   gramPopoverOpen: boolean;
   setGramPopoverOpen: (value: boolean) => void;
+  village: string;
+  onVillageChange: (value: string) => void;
+  villages: string[];
+  villagePopoverOpen: boolean;
+  setVillagePopoverOpen: (value: boolean) => void;
 };
 
 type ActiveFillSessionProps = {
@@ -230,6 +237,11 @@ function SessionSearchPanel({
   gramPanchayats,
   gramPopoverOpen,
   setGramPopoverOpen,
+  village,
+  onVillageChange,
+  villages,
+  villagePopoverOpen,
+  setVillagePopoverOpen,
 }: SessionSearchPanelProps) {
   return (
     <section className="border border-border bg-[#eff4ff] px-4 py-3">
@@ -294,7 +306,7 @@ function SessionSearchPanel({
                 <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+            <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
               <Command>
                 <CommandInput placeholder="Search gram panchayat..." />
                 <CommandList>
@@ -312,6 +324,55 @@ function SessionSearchPanel({
                         className={cn(
                           "mr-2 size-4",
                           gramPanchayat === item ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      {item}
+                    </CommandItem>
+                  ))}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Village
+          </Label>
+          <Popover open={villagePopoverOpen} onOpenChange={setVillagePopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                type="button"
+                aria-expanded={villagePopoverOpen}
+                disabled={!district || !block || !gramPanchayat}
+                className="h-8 w-full justify-between rounded-none border-border bg-card px-2 font-normal"
+              >
+                <span className="truncate text-left">
+                  {village || "Search village"}
+                </span>
+                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
+              <Command>
+                <CommandInput placeholder="Search village..." />
+                <CommandList>
+                  <CommandEmpty>No village found.</CommandEmpty>
+                  {villages.map((item) => (
+                    <CommandItem
+                      key={item}
+                      value={item}
+                      onSelect={() => {
+                        onVillageChange(item);
+                        setVillagePopoverOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 size-4",
+                          village === item ? "opacity-100" : "opacity-0",
                         )}
                       />
                       {item}
@@ -344,12 +405,15 @@ export default function FillByCodePage() {
   const [district, setDistrict] = useState("");
   const [block, setBlock] = useState("");
   const [gramPanchayat, setGramPanchayat] = useState("");
+  const [village, setVillage] = useState("");
   const [debouncedFilters, setDebouncedFilters] = useState({
     district: "",
     block: "",
     gramPanchayat: "",
+    village: "",
   });
   const [gramPopoverOpen, setGramPopoverOpen] = useState(false);
+  const [villagePopoverOpen, setVillagePopoverOpen] = useState(false);
 
   const sessionQuery = useSessionDetail(selectedSessionId);
   const sessionContext = sessionQuery.data?.context;
@@ -369,27 +433,39 @@ export default function FillByCodePage() {
   const normalizedGramPanchayat = availableGramPanchayats.includes(gramPanchayat)
     ? gramPanchayat
     : "";
+  const villageQuery = useSessionVillageOptions(
+    effectiveDistrict || undefined,
+    normalizedBlock || undefined,
+    normalizedGramPanchayat || undefined,
+  );
+  const availableVillages = villageQuery.data ?? [];
+  const normalizedVillage = availableVillages.includes(village)
+    ? village
+    : "";
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedFilters({
         district,
         block: normalizedBlock,
         gramPanchayat: normalizedGramPanchayat,
+        village: normalizedVillage,
       });
     }, 350);
     return () => clearTimeout(timer);
-  }, [district, normalizedBlock, normalizedGramPanchayat]);
+  }, [district, normalizedBlock, normalizedGramPanchayat, normalizedVillage]);
 
   const sessionsQuery = useSessionSearch({
     district: debouncedFilters.district || undefined,
     block: debouncedFilters.block || undefined,
     gramPanchayat: debouncedFilters.gramPanchayat || undefined,
+    village: debouncedFilters.village || undefined,
   });
   const normalizedDistrict = district.trim().toLowerCase();
   const normalizedBlockKey = normalizedBlock.trim().toLowerCase();
   const normalizedGramPanchayatKey = normalizedGramPanchayat.trim().toLowerCase();
+  const normalizedVillageKey = normalizedVillage.trim().toLowerCase();
   const exactMatchedSession = useMemo(() => {
-    if (!normalizedDistrict || !normalizedBlockKey || !normalizedGramPanchayatKey) return undefined;
+    if (!normalizedDistrict || !normalizedBlockKey || !normalizedGramPanchayatKey || !normalizedVillageKey) return undefined;
     const sessions = sessionsQuery.data ?? [];
     return sessions.find((session) => {
       const context = session.context;
@@ -397,18 +473,20 @@ export default function FillByCodePage() {
         context.district.trim().toLowerCase() === normalizedDistrict
         && context.block.trim().toLowerCase() === normalizedBlockKey
         && context.gramPanchayat.trim().toLowerCase() === normalizedGramPanchayatKey
+        && context.village.trim().toLowerCase() === normalizedVillageKey
       );
     });
   }, [
     normalizedBlockKey,
     normalizedDistrict,
     normalizedGramPanchayatKey,
+    normalizedVillageKey,
     sessionsQuery.data,
   ]);
 
   useEffect(() => {
     if (selectedSessionId) return;
-    if (!formCode || !district || !normalizedBlock || !normalizedGramPanchayat) return;
+    if (!formCode || !district || !normalizedBlock || !normalizedGramPanchayat || !normalizedVillage) return;
     const resolvedSessionId = exactMatchedSession?.id;
     if (!resolvedSessionId) return;
 
@@ -419,6 +497,7 @@ export default function FillByCodePage() {
     formCode,
     normalizedBlock,
     normalizedGramPanchayat,
+    normalizedVillage,
     router,
     selectedSessionId,
   ]);
@@ -429,7 +508,7 @@ export default function FillByCodePage() {
 
   const shouldShowNoSessionMatchNotice =
     !selectedSessionId
-    && Boolean(district && normalizedBlock && normalizedGramPanchayat)
+    && Boolean(district && normalizedBlock && normalizedGramPanchayat && normalizedVillage)
     && !sessionsQuery.isLoading
     && !exactMatchedSession;
 
@@ -437,6 +516,8 @@ export default function FillByCodePage() {
   const searchBlock = normalizedBlock;
   const searchGramPanchayat =
     selectedSessionId && sessionContext ? sessionContext.gramPanchayat : normalizedGramPanchayat;
+  const searchVillage =
+    selectedSessionId && sessionContext ? sessionContext.village : normalizedVillage;
 
   const searchPanel = (
     <SessionSearchPanel
@@ -445,6 +526,7 @@ export default function FillByCodePage() {
         setDistrict(value);
         setBlock("");
         setGramPanchayat("");
+        setVillage("");
         router.replace(`/fill/${formCode}`);
       }}
       districts={districtQuery.data ?? []}
@@ -452,22 +534,32 @@ export default function FillByCodePage() {
       onBlockChange={(value) => {
         setBlock(value);
         setGramPanchayat("");
+        setVillage("");
         router.replace(`/fill/${formCode}`);
       }}
       blocks={availableBlocks}
       gramPanchayat={searchGramPanchayat}
       onGramPanchayatChange={(value) => {
         setGramPanchayat(value);
+        setVillage("");
         router.replace(`/fill/${formCode}`);
       }}
       gramPanchayats={availableGramPanchayats}
       gramPopoverOpen={gramPopoverOpen}
       setGramPopoverOpen={setGramPopoverOpen}
+      village={searchVillage}
+      onVillageChange={(value) => {
+        setVillage(value);
+        router.replace(`/fill/${formCode}`);
+      }}
+      villages={availableVillages}
+      villagePopoverOpen={villagePopoverOpen}
+      setVillagePopoverOpen={setVillagePopoverOpen}
     />
   );
 
   if (!selectedSessionId) {
-    const previewContext = makePreviewContext(district, block, gramPanchayat);
+    const previewContext = makePreviewContext(district, block, gramPanchayat, village);
 
     return (
       <div className="min-h-screen bg-background">
@@ -483,7 +575,7 @@ export default function FillByCodePage() {
           <div className="mt-4">{searchPanel}</div>
           {shouldShowNoSessionMatchNotice ? (
             <div className="mt-3 border border-destructive/40 bg-destructive/10 px-4 py-2 text-xs text-destructive">
-              No session found for this district/block/gram panchayat. Create or update a session first.
+              No session found for this district/block/gram panchayat/village. Create or update a session first.
             </div>
           ) : null}
 

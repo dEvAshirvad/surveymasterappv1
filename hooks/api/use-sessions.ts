@@ -11,6 +11,7 @@ import {
   listSessionBlockOptions,
   listSessionDistrictOptions,
   listSessionGramPanchayatOptions,
+  listSessionVillageOptions,
   listSessions,
   searchSessions,
   type SessionSearchFilters,
@@ -33,8 +34,9 @@ export function useSessionSearch(filters: SessionSearchFilters) {
       filters.district,
       filters.block,
       filters.gramPanchayat,
+      filters.village,
     ),
-    enabled: Boolean(filters.district || filters.block || filters.gramPanchayat),
+    enabled: Boolean(filters.district || filters.block || filters.gramPanchayat || filters.village),
     queryFn: () => searchSessions(filters),
     staleTime: 2 * 60 * 1000,
   });
@@ -64,6 +66,21 @@ export function useSessionGramPanchayatOptions(district?: string, block?: string
     queryKey: queryKeys.sessions.gramPanchayatOptions(district, block),
     enabled: Boolean(district && block),
     queryFn: () => listSessionGramPanchayatOptions(district as string, block as string),
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+export function useSessionVillageOptions(
+  district?: string,
+  block?: string,
+  gramPanchayat?: string,
+) {
+  return useQuery({
+    queryKey: queryKeys.sessions.villageOptions(district, block, gramPanchayat),
+    enabled: Boolean(district && block && gramPanchayat),
+    queryFn: () =>
+      listSessionVillageOptions(district as string, block as string, gramPanchayat as string),
     staleTime: 0,
     refetchOnMount: "always",
   });

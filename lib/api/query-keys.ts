@@ -2,13 +2,38 @@ export const queryKeys = {
   sessions: {
     all: ["sessions"] as const,
     list: () => ["sessions", "list"] as const,
-    search: (district?: string, block?: string, gramPanchayat?: string) =>
-      ["sessions", "search", district ?? "", block ?? "", gramPanchayat ?? ""] as const,
+    search: (
+      district?: string,
+      block?: string,
+      gramPanchayat?: string,
+      village?: string,
+    ) =>
+      [
+        "sessions",
+        "search",
+        district ?? "",
+        block ?? "",
+        gramPanchayat ?? "",
+        village ?? "",
+      ] as const,
     districtOptions: () => ["sessions", "options", "districts"] as const,
     blockOptions: (district?: string) =>
       ["sessions", "options", "blocks", district ?? ""] as const,
     gramPanchayatOptions: (district?: string, block?: string) =>
       ["sessions", "options", "gram-panchayats", district ?? "", block ?? ""] as const,
+    villageOptions: (
+      district?: string,
+      block?: string,
+      gramPanchayat?: string,
+    ) =>
+      [
+        "sessions",
+        "options",
+        "villages",
+        district ?? "",
+        block ?? "",
+        gramPanchayat ?? "",
+      ] as const,
     detail: (id: string) => ["sessions", id] as const,
     formsSummary: (id: string) => ["sessions", id, "forms-summary"] as const,
   },

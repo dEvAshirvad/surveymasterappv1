@@ -4,23 +4,23 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Save } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
 import Header from "@/components/Header";
 import { useSessionDetail, useUpdateSession } from "@/hooks/api/use-sessions";
+import { buildSessionTitle } from "@/lib/session-title";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type SessionEditFormValues = {
-  title: string;
   district: string;
   block: string;
   gramPanchayat: string;
   village: string;
   surveyDate: string;
   totalPopulation: number;
-  distanceFromNearestMine : number;
+  distanceFromNearestMine: number;
   totalHouseholds: number;
   scHouseholds: number;
   stHouseholds: number;
@@ -49,20 +49,19 @@ export default function SessionEditPage() {
     register,
     reset,
     handleSubmit,
-    formState: { errors },
+    control,
   } = useForm<SessionEditFormValues>({
     defaultValues: {
-      title: "",
       district: "",
       block: "",
       gramPanchayat: "",
       village: "",
       surveyDate: "",
-      totalPopulation: 1,
-      totalHouseholds: 1,
-      scHouseholds: 1,
+      totalPopulation: 0,
+      totalHouseholds: 0,
+      scHouseholds: 0,
       distanceFromNearestMine: 0,
-      stHouseholds: 1,
+      stHouseholds: 0,
       miningAffectedArea: "direct",
       surveyorName: "",
       surveyorNameNIT: "",
@@ -73,7 +72,6 @@ export default function SessionEditPage() {
     if (!sessionQuery.data) return;
     const session = sessionQuery.data;
     reset({
-      title: session.title,
       district: session.context.district,
       block: session.context.block,
       gramPanchayat: session.context.gramPanchayat,
@@ -90,21 +88,31 @@ export default function SessionEditPage() {
     });
   }, [reset, sessionQuery.data]);
 
+  const district = useWatch({ control, name: "district" });
+  const block = useWatch({ control, name: "block" });
+  const gramPanchayat = useWatch({ control, name: "gramPanchayat" });
+  const village = useWatch({ control, name: "village" });
+  const surveyDate = useWatch({ control, name: "surveyDate" });
+
+  const sessionTitlePreview =
+    district && block && gramPanchayat && village && surveyDate
+      ? buildSessionTitle({ district, block, gramPanchayat, village, surveyDate })
+      : sessionQuery.data?.title ?? "District Block GP Village - Month Year";
+
   const onSubmit = handleSubmit(async values => {
     try {
       await updateSessionMutation.mutateAsync({
-        title: values.title,
         context: {
           district: values.district,
           block: values.block,
           gramPanchayat: values.gramPanchayat,
           village: values.village,
           surveyDate: values.surveyDate,
-          distanceFromNearestMine: values.distanceFromNearestMine,
-          totalPopulation: Number(values.totalPopulation),
-          totalHouseholds: Number(values.totalHouseholds),
-          scHouseholds: Number(values.scHouseholds),
-          stHouseholds: Number(values.stHouseholds),
+          distanceFromNearestMine: Number(values.distanceFromNearestMine) || 0,
+          totalPopulation: Number(values.totalPopulation) || 0,
+          totalHouseholds: Number(values.totalHouseholds) || 0,
+          scHouseholds: Number(values.scHouseholds) || 0,
+          stHouseholds: Number(values.stHouseholds) || 0,
           miningAffectedArea: values.miningAffectedArea,
           surveyorName: values.surveyorName,
           surveyorNameNIT: values.surveyorNameNIT,
@@ -128,7 +136,7 @@ export default function SessionEditPage() {
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Edit Session</h1>
               <p className="text-sm text-muted-foreground">
-                Update session title and context metadata.
+                Update session context metadata. Title is regenerated automatically.
               </p>
             </div>
             <Button variant="outline" asChild>
@@ -154,13 +162,10 @@ export default function SessionEditPage() {
               <label className="mb-1 block text-xs font-semibold text-foreground">
                 Session Title
               </label>
-              <Input
-                placeholder="Korba Block 3 — March 2026"
-                {...register("title", { required: "Session title is required." })}
-              />
-              {errors.title ? (
-                <p className="mt-1 text-xs text-destructive">{errors.title.message}</p>
-              ) : null}
+              <Input value={sessionTitlePreview} readOnly disabled className="bg-muted/40" />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Generated automatically from district, block, gram panchayat, village, and survey date.
+              </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -217,7 +222,7 @@ export default function SessionEditPage() {
                 <label className="mb-1 block text-xs font-semibold text-foreground">
                   Distance from Nearest Mine (in km)
                 </label>
-                <Input type="number" {...register("distanceFromNearestMine", { required: true })} />
+                <Input type="number" min={0} {...register("distanceFromNearestMine", { required: true })} />
               </div>
             </div>
 
@@ -228,11 +233,10 @@ export default function SessionEditPage() {
                 </label>
                 <Input
                   type="number"
-                  min={1}
+                  min={0}
                   {...register("totalPopulation", {
-                    required: true,
                     valueAsNumber: true,
-                    min: 1,
+                    min: 0,
                   })}
                 />
               </div>
@@ -242,11 +246,10 @@ export default function SessionEditPage() {
                 </label>
                 <Input
                   type="number"
-                  min={1}
+                  min={0}
                   {...register("totalHouseholds", {
-                    required: true,
                     valueAsNumber: true,
-                    min: 1,
+                    min: 0,
                   })}
                 />
               </div>
@@ -259,11 +262,10 @@ export default function SessionEditPage() {
                 </label>
                 <Input
                   type="number"
-                  min={1}
+                  min={0}
                   {...register("scHouseholds", {
-                    required: true,
                     valueAsNumber: true,
-                    min: 1,
+                    min: 0,
                   })}
                 />
               </div>
@@ -273,11 +275,10 @@ export default function SessionEditPage() {
                 </label>
                 <Input
                   type="number"
-                  min={1}
+                  min={0}
                   {...register("stHouseholds", {
-                    required: true,
                     valueAsNumber: true,
-                    min: 1,
+                    min: 0,
                   })}
                 />
               </div>

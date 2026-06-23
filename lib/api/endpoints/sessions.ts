@@ -46,10 +46,10 @@ export type SessionSearchFilters = {
   district?: string;
   block?: string;
   gramPanchayat?: string;
+  village?: string;
 };
 
 export type CreateSessionPayload = {
-  title: string;
   context: SessionContext;
 };
 
@@ -98,6 +98,16 @@ export async function listSessionGramPanchayatOptions(
 ) {
   return apiGet<string[]>("/api/v1/sessions/options/gram-panchayats", {
     params: { district, block },
+  });
+}
+
+export async function listSessionVillageOptions(
+  district: string,
+  block: string,
+  gramPanchayat: string,
+) {
+  return apiGet<string[]>("/api/v1/sessions/options/villages", {
+    params: { district, block, gramPanchayat },
   });
 }
 

@@ -3,16 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Save } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
 import Header from "@/components/Header";
 import { useCreateSession } from "@/hooks/api/use-sessions";
+import { buildSessionTitle } from "@/lib/session-title";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type NewSessionFormValues = {
-  title: string;
   district: string;
   block: string;
   gramPanchayat: string;
@@ -37,41 +37,51 @@ export default function NewSessionPage() {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<NewSessionFormValues>({
     defaultValues: {
-      title: "",
       district: "",
       block: "",
       gramPanchayat: "",
       village: "",
       surveyDate: today,
       distanceFromNearestMine: 0,
-      totalPopulation: 1200,
-      totalHouseholds: 250,
-      scHouseholds: 40,
-      stHouseholds: 60,
+      totalPopulation: 0,
+      totalHouseholds: 0,
+      scHouseholds: 0,
+      stHouseholds: 0,
       miningAffectedArea: "direct",
       surveyorName: "",
       surveyorNameNIT: "",
     },
   });
 
+  const district = useWatch({ control, name: "district" });
+  const block = useWatch({ control, name: "block" });
+  const gramPanchayat = useWatch({ control, name: "gramPanchayat" });
+  const village = useWatch({ control, name: "village" });
+  const surveyDate = useWatch({ control, name: "surveyDate" });
+
+  const sessionTitlePreview =
+    district && block && gramPanchayat && village && surveyDate
+      ? buildSessionTitle({ district, block, gramPanchayat, village, surveyDate })
+      : "District Block GP Village - Month Year";
+
   const onSubmit = handleSubmit(async (values) => {
     try {
       const created = await createSessionMutation.mutateAsync({
-        title: values.title,
         context: {
           district: values.district,
           block: values.block,
           gramPanchayat: values.gramPanchayat,
           village: values.village,
           surveyDate: values.surveyDate,
-          distanceFromNearestMine: values.distanceFromNearestMine,
-          totalPopulation: Number(values.totalPopulation),
-          totalHouseholds: Number(values.totalHouseholds),
-          scHouseholds: Number(values.scHouseholds),
-          stHouseholds: Number(values.stHouseholds),
+          distanceFromNearestMine: Number(values.distanceFromNearestMine) || 0,
+          totalPopulation: Number(values.totalPopulation) || 0,
+          totalHouseholds: Number(values.totalHouseholds) || 0,
+          scHouseholds: Number(values.scHouseholds) || 0,
+          stHouseholds: Number(values.stHouseholds) || 0,
           miningAffectedArea: values.miningAffectedArea,
           surveyorName: values.surveyorName,
           surveyorNameNIT: values.surveyorNameNIT,
@@ -112,13 +122,10 @@ export default function NewSessionPage() {
               <label className="mb-1 block text-xs font-semibold text-foreground">
                 Session Title
               </label>
-              <Input
-                placeholder="Korba Block 3 — March 2026"
-                {...register("title", { required: "Session title is required." })}
-              />
-              {errors.title ? (
-                <p className="mt-1 text-xs text-destructive">{errors.title.message}</p>
-              ) : null}
+              <Input value={sessionTitlePreview} readOnly disabled className="bg-muted/40" />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Generated automatically from district, block, gram panchayat, village, and survey date.
+              </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -190,7 +197,7 @@ export default function NewSessionPage() {
                 <label className="mb-1 block text-xs font-semibold text-foreground">
                   Distance from Nearest Mine (in km)
                 </label>
-                <Input type="number" {...register("distanceFromNearestMine", { required: true })} />
+                <Input type="number" min={0} {...register("distanceFromNearestMine", { required: true })} />
                 {errors.distanceFromNearestMine ? (
                   <p className="mt-1 text-xs text-destructive">{errors.distanceFromNearestMine.message}</p>
                 ) : null}
@@ -204,11 +211,10 @@ export default function NewSessionPage() {
                 </label>
                 <Input
                   type="number"
-                  min={1}
+                  min={0}
                   {...register("totalPopulation", {
-                    required: true,
                     valueAsNumber: true,
-                    min: 1,
+                    min: 0,
                   })}
                 />
               </div>
@@ -218,11 +224,10 @@ export default function NewSessionPage() {
                 </label>
                 <Input
                   type="number"
-                  min={1}
+                  min={0}
                   {...register("totalHouseholds", {
-                    required: true,
                     valueAsNumber: true,
-                    min: 1,
+                    min: 0,
                   })}
                 />
               </div>
@@ -235,11 +240,10 @@ export default function NewSessionPage() {
                 </label>
                 <Input
                   type="number"
-                  min={1}
+                  min={0}
                   {...register("scHouseholds", {
-                    required: true,
                     valueAsNumber: true,
-                    min: 1,
+                    min: 0,
                   })}
                 />
               </div>
@@ -249,11 +253,10 @@ export default function NewSessionPage() {
                 </label>
                 <Input
                   type="number"
-                  min={1}
+                  min={0}
                   {...register("stHouseholds", {
-                    required: true,
                     valueAsNumber: true,
-                    min: 1,
+                    min: 0,
                   })}
                 />
               </div>
